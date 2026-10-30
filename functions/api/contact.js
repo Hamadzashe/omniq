@@ -92,7 +92,7 @@ export async function onRequestPost(context) {
     `;
 
     const payload = {
-      to: contactTo,
+      to: [contactTo],
       subject,
       text,
       html,

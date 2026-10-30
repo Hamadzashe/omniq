@@ -97,7 +97,7 @@ async function handleContact(request, env) {
   `;
 
   const payload = {
-    to: contactTo,
+    to: [contactTo],
     subject,
     text,
     html,

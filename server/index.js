@@ -120,7 +120,7 @@ app.post("/api/contact", async (req, res) => {
     `;
 
     const payload = {
-      to: CONTACT_TO,
+      to: [CONTACT_TO],
       subject,
       text,
       html,
