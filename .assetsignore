@@ -14,3 +14,4 @@ README.md
 .assetsignore
 wrangler.toml
 worker.js
+# Keep assets/services images in the deploy
