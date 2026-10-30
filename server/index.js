@@ -3,7 +3,6 @@ import { fileURLToPath } from "node:url";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
-import nodemailer from "nodemailer";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
@@ -15,6 +14,7 @@ const {
   OQUMAIL_API_KEY,
   CONTACT_TO,
   MAIL_FROM_NAME = "OMNIQ Integrated Systems",
+  MAIL_FROM = "",
   PORT = "3000",
   CORS_ORIGIN = "*",
 } = process.env;
@@ -30,16 +30,6 @@ if (!CONTACT_TO) {
     "[omniq-mail] CONTACT_TO is missing. Set the inbox that should receive form submissions."
   );
 }
-
-const transport = nodemailer.createTransport({
-  host: "mail.oqumail.com",
-  port: 2587,
-  secure: false,
-  auth: {
-    user: "apikey",
-    pass: OQUMAIL_API_KEY || "",
-  },
-});
 
 const app = express();
 app.use(
@@ -61,10 +51,20 @@ function isEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
     mailConfigured: Boolean(OQUMAIL_API_KEY && CONTACT_TO),
+    runtime: "local-express",
   });
 });
 
@@ -119,14 +119,37 @@ app.post("/api/contact", async (req, res) => {
       </div>
     `;
 
-    await transport.sendMail({
-      from: `${MAIL_FROM_NAME}`,
+    const payload = {
       to: CONTACT_TO,
-      replyTo: `${name} <${email}>`,
       subject,
       text,
       html,
+      fromName: MAIL_FROM_NAME,
+      replyTo: email,
+    };
+
+    if (MAIL_FROM) {
+      payload.from = MAIL_FROM;
+    }
+
+    const mailRes = await fetch("https://api.oqumail.com/api/v1/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OQUMAIL_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
     });
+
+    if (!mailRes.ok) {
+      const detail = await mailRes.text().catch(() => "");
+      console.error("[omniq-mail] OquMail error:", mailRes.status, detail);
+      return res.status(502).json({
+        ok: false,
+        error:
+          "We could not send your message right now. Please try again shortly.",
+      });
+    }
 
     return res.json({ ok: true });
   } catch (error) {
@@ -137,15 +160,6 @@ app.post("/api/contact", async (req, res) => {
     });
   }
 });
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
 
 app.listen(Number(PORT), () => {
   console.log(`[omniq-mail] listening on http://localhost:${PORT}`);
