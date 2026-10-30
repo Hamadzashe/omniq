@@ -651,29 +651,153 @@ p {
   content: "";
   position: absolute;
   left: 50%;
-  top: 10%;
-  width: min(70vw, 36rem);
-  height: 18rem;
+  top: 8%;
+  width: min(75vw, 40rem);
+  height: 20rem;
   transform: translateX(-50%);
-  background: radial-gradient(circle, rgba(0, 160, 210, 0.12), transparent 68%);
+  background: radial-gradient(circle, rgba(0, 160, 210, 0.14), transparent 68%);
   pointer-events: none;
   z-index: -1;
 }
 
 .platforms__intro {
-  max-width: 38rem;
+  max-width: 40rem;
   margin-bottom: 2.5rem;
 }
 
 .platforms__intro h2 {
   font-size: clamp(2rem, 4vw, 2.9rem);
   margin-bottom: 1rem;
-  max-width: 14ch;
+  max-width: 16ch;
 }
 
-.platforms__grid {
+.poneswa {
   display: grid;
-  grid-template-columns: 1.35fr 1fr 1fr;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.25fr);
+  gap: clamp(1.25rem, 3vw, 2.25rem);
+  padding: clamp(1.25rem, 3vw, 1.85rem);
+  border-radius: 1.35rem;
+  margin-bottom: 1.15rem;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 70% 55% at 100% 0%, rgba(0, 180, 230, 0.18), transparent 55%),
+    rgba(10, 12, 16, 0.82);
+}
+
+.poneswa__copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.35rem 0.25rem;
+}
+
+.poneswa__copy h3 {
+  font-size: clamp(1.45rem, 2.6vw, 2rem);
+  margin-bottom: 0.75rem;
+  color: #f3f4f6;
+}
+
+.poneswa__copy > p {
+  color: rgba(243, 244, 246, 0.72);
+  font-size: 1.02rem;
+  font-weight: 300;
+  line-height: 1.7;
+  margin-bottom: 1.25rem;
+}
+
+.poneswa__features {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0 0 1.5rem;
+  padding: 0;
+}
+
+.poneswa__features li {
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: rgba(243, 244, 246, 0.88);
+  padding-left: 0.95rem;
+  border-left: 2px solid rgba(0, 180, 230, 0.55);
+}
+
+.poneswa__gallery {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.poneswa__shot {
+  margin: 0;
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #0b0d12;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+}
+
+.poneswa__shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+  transition: transform 0.6s var(--ease);
+}
+
+.poneswa__shot:hover img {
+  transform: scale(1.03);
+}
+
+.poneswa__shot figcaption {
+  position: absolute;
+  left: 0.7rem;
+  bottom: 0.7rem;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(8, 10, 14, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px);
+}
+
+.poneswa__shot--desk {
+  grid-column: span 1;
+  min-height: 10.5rem;
+}
+
+.poneswa__shot--desk:first-child {
+  grid-column: 1 / -1;
+  min-height: 13.5rem;
+}
+
+.poneswa__phones {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.poneswa__shot--phone {
+  min-height: 18rem;
+  background: #05070a;
+}
+
+.poneswa__shot--phone img {
+  object-fit: contain;
+  object-position: center top;
+  padding: 0.65rem 0.65rem 1.8rem;
+}
+
+.platforms__pipeline {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.9rem;
 }
 
@@ -688,24 +812,6 @@ p {
 
 .platform:hover {
   transform: translateY(-4px);
-}
-
-.platform--featured {
-  position: relative;
-  overflow: hidden;
-  min-height: 18rem;
-  justify-content: flex-end;
-  background:
-    radial-gradient(ellipse 80% 70% at 90% 0%, rgba(0, 180, 230, 0.2), transparent 55%),
-    rgba(14, 16, 20, 0.78);
-}
-
-.platform--featured::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 2px;
-  background: linear-gradient(90deg, rgba(0, 180, 230, 0.9), transparent 70%);
 }
 
 .platform__meta {
@@ -732,7 +838,7 @@ p {
   border: 1px solid rgba(13, 79, 79, 0.2);
 }
 
-.platform--featured .platform__tag {
+.poneswa .platform__tag {
   background: rgba(0, 180, 230, 0.14);
   color: #7dd8f0;
   border-color: rgba(0, 180, 230, 0.28);
@@ -745,7 +851,7 @@ p {
 }
 
 .platform h3 {
-  font-size: clamp(1.35rem, 2.4vw, 1.85rem);
+  font-size: clamp(1.25rem, 2.2vw, 1.55rem);
   margin-bottom: 0.65rem;
 }
 
@@ -755,11 +861,6 @@ p {
   font-weight: 300;
   margin-bottom: 1.25rem;
   flex: 1;
-}
-
-.platform--featured p {
-  color: rgba(243, 244, 246, 0.7);
-  max-width: 36ch;
 }
 
 .platform__link {
@@ -1208,10 +1309,20 @@ p {
   .contact__layout,
   .sectors__panel,
   .process__steps,
-  .platforms__grid,
+  .poneswa,
+  .poneswa__gallery,
+  .platforms__pipeline,
   .offer-grid,
   .offer--wide {
     grid-template-columns: 1fr;
+  }
+
+  .poneswa__shot--desk:first-child {
+    grid-column: auto;
+  }
+
+  .poneswa__phones {
+    grid-template-columns: 1fr 1fr;
   }
 
   .process__steps {
