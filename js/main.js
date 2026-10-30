@@ -2,6 +2,26 @@
   const year = document.getElementById("year");
   if (year) year.textContent = String(new Date().getFullYear());
 
+  const routes = {
+    "/": "home",
+    "/services": "services",
+    "/platforms": "platforms",
+    "/process": "process",
+    "/about": "about",
+    "/sectors": "sectors",
+    "/contact": "contact",
+  };
+
+  const titles = {
+    "/": "OMNIQ Integrated Systems",
+    "/services": "Services | OMNIQ Integrated Systems",
+    "/platforms": "Platforms | OMNIQ Integrated Systems",
+    "/process": "Process | OMNIQ Integrated Systems",
+    "/about": "About | OMNIQ Integrated Systems",
+    "/sectors": "Who we serve | OMNIQ Integrated Systems",
+    "/contact": "Contact | OMNIQ Integrated Systems",
+  };
+
   const header = document.querySelector("[data-header]");
   const onScroll = () => {
     if (!header) return;
@@ -13,25 +33,116 @@
   const toggle = document.querySelector(".nav-toggle");
   const menu = document.getElementById("nav-menu");
 
+  const setMenuOpen = (open) => {
+    if (!toggle || !menu) return;
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    menu.classList.toggle("is-open", open);
+  };
+
   if (toggle && menu) {
-    const setOpen = (open) => {
-      toggle.setAttribute("aria-expanded", String(open));
-      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
-      menu.classList.toggle("is-open", open);
-    };
-
     toggle.addEventListener("click", () => {
-      setOpen(toggle.getAttribute("aria-expanded") !== "true");
-    });
-
-    menu.querySelectorAll("a").forEach((link) => {
-      link.addEventListener("click", () => setOpen(false));
+      setMenuOpen(toggle.getAttribute("aria-expanded") !== "true");
     });
 
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") setMenuOpen(false);
     });
   }
+
+  const getHeaderOffset = () => {
+    const sticky = document.querySelector(".site-header");
+    return (sticky?.offsetHeight || 72) + 16;
+  };
+
+  const normalizePath = (pathname) => {
+    if (!pathname || pathname === "/") return "/";
+    return pathname.replace(/\/+$/, "") || "/";
+  };
+
+  const scrollToSection = (id, behavior = "smooth") => {
+    if (id === "home") {
+      window.scrollTo({ top: 0, behavior });
+      return;
+    }
+    const target = document.getElementById(id);
+    if (!target) return;
+    const top = target.getBoundingClientRect().top + window.scrollY - getHeaderOffset();
+    window.scrollTo({ top: Math.max(0, top), behavior });
+  };
+
+  const applyRoute = (pathname, { push = false, replace = false, scroll = true } = {}) => {
+    const path = normalizePath(pathname);
+    const id = routes[path] || "home";
+    const finalPath = routes[path] ? path : "/";
+
+    if (push) {
+      history.pushState({ path: finalPath }, "", finalPath);
+    } else if (replace) {
+      history.replaceState({ path: finalPath }, "", finalPath);
+    }
+
+    document.title = titles[finalPath] || titles["/"];
+    document.querySelectorAll(".nav a").forEach((link) => {
+      const href = normalizePath(link.getAttribute("href") || "");
+      link.classList.toggle("is-active", href === finalPath);
+    });
+
+    if (scroll) {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      scrollToSection(id, reduceMotion ? "auto" : "smooth");
+    }
+  };
+
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest("a[href]");
+    if (!link) return;
+
+    const href = link.getAttribute("href");
+    if (!href || href.startsWith("http") || href.startsWith("mailto:") || href.startsWith("tel:")) {
+      return;
+    }
+
+    let url;
+    try {
+      url = new URL(href, window.location.origin);
+    } catch {
+      return;
+    }
+
+    if (url.origin !== window.location.origin) return;
+
+    const path = normalizePath(url.pathname);
+    if (!routes[path]) return;
+
+    event.preventDefault();
+    setMenuOpen(false);
+    applyRoute(path, { push: true, scroll: true });
+  });
+
+  window.addEventListener("popstate", () => {
+    applyRoute(window.location.pathname, { scroll: true });
+  });
+
+  // Support old hash links and first load of clean paths
+  const boot = () => {
+    if (window.location.hash) {
+      const hash = window.location.hash.replace("#", "");
+      const mapped =
+        hash === "top" || hash === "home"
+          ? "/"
+          : hash === "approach"
+            ? "/about"
+            : routes[`/${hash}`]
+              ? `/${hash}`
+              : "/";
+      applyRoute(mapped, { replace: true, scroll: true });
+      return;
+    }
+    applyRoute(window.location.pathname, { replace: true, scroll: true });
+  };
+
+  boot();
 
   const heroImg = document.querySelector("[data-hero-media] img");
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
