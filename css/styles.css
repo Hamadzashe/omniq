@@ -494,62 +494,93 @@ p {
   padding: clamp(4.5rem, 10vw, 7rem) 0;
 }
 
-/* Services */
-.services {
-  display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
-  gap: clamp(2rem, 5vw, 4.5rem);
-  align-items: start;
+/* Service offerings */
+.offerings__intro {
+  max-width: 40rem;
+  margin-bottom: 2.75rem;
 }
 
-.services__intro h2 {
+.offerings__intro h2 {
   font-size: clamp(2rem, 4vw, 3rem);
   margin-bottom: 1.1rem;
-  max-width: 12ch;
+  max-width: 18ch;
 }
 
-.capability-list {
+.offer-grid {
   display: grid;
-  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
 }
 
-.capability {
+.offer {
+  overflow: hidden;
+  border-radius: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.35s var(--ease), border-color 0.35s var(--ease);
+}
+
+.offer:hover {
+  transform: translateY(-4px);
+  border-color: rgba(13, 79, 79, 0.28);
+}
+
+.offer--wide {
+  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 3.25rem 1fr;
-  gap: 0.85rem;
-  padding: 1.2rem 1.25rem;
-  border-radius: 0.9rem;
-  transition: transform 0.3s var(--ease), border-color 0.3s var(--ease);
+  grid-template-columns: 1.15fr 0.85fr;
+  align-items: stretch;
 }
 
-.capability__index {
+.offer__media {
+  position: relative;
+  overflow: hidden;
+  min-height: 14rem;
+  background: #dfe3e8;
+}
+
+.offer--wide .offer__media {
+  min-height: 18rem;
+}
+
+.offer__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform 0.7s var(--ease);
+}
+
+.offer:hover .offer__media img {
+  transform: scale(1.04);
+}
+
+.offer__body {
+  padding: 1.35rem 1.35rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.offer__index {
   font-family: var(--font-display);
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  color: var(--steel);
-  padding-top: 0.15rem;
-  transition: color 0.3s var(--ease);
-}
-
-.capability__body h3 {
-  font-size: 1.12rem;
-  margin-bottom: 0.35rem;
-}
-
-.capability__body p {
-  color: var(--muted);
-  font-size: 0.96rem;
-  font-weight: 300;
-  max-width: 38ch;
-}
-
-.capability:hover {
-  transform: translateY(-2px);
-  border-color: rgba(13, 79, 79, 0.25);
-}
-
-.capability:hover .capability__index {
+  letter-spacing: 0.08em;
   color: var(--accent);
+  margin-bottom: 0.65rem;
+}
+
+.offer__body h3 {
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+  margin-bottom: 0.55rem;
+}
+
+.offer__body p {
+  color: var(--muted);
+  font-size: 0.98rem;
+  font-weight: 300;
+  max-width: 42ch;
 }
 
 /* Platforms / products */
@@ -1076,12 +1107,15 @@ p {
   transform: translateY(0);
 }
 
-.capability:nth-child(2)[data-reveal] { transition-delay: 0.05s; }
-.capability:nth-child(3)[data-reveal] { transition-delay: 0.1s; }
-.capability:nth-child(4)[data-reveal] { transition-delay: 0.15s; }
-.capability:nth-child(5)[data-reveal] { transition-delay: 0.2s; }
-.capability:nth-child(6)[data-reveal] { transition-delay: 0.25s; }
-.capability:nth-child(7)[data-reveal] { transition-delay: 0.3s; }
+.offer:nth-child(2)[data-reveal] { transition-delay: 0.05s; }
+.offer:nth-child(3)[data-reveal] { transition-delay: 0.1s; }
+.offer:nth-child(4)[data-reveal] { transition-delay: 0.12s; }
+.offer:nth-child(5)[data-reveal] { transition-delay: 0.14s; }
+.offer:nth-child(6)[data-reveal] { transition-delay: 0.16s; }
+.offer:nth-child(7)[data-reveal] { transition-delay: 0.18s; }
+.offer:nth-child(8)[data-reveal] { transition-delay: 0.2s; }
+.offer:nth-child(9)[data-reveal] { transition-delay: 0.22s; }
+.offer:nth-child(10)[data-reveal] { transition-delay: 0.24s; }
 
 .process__step:nth-child(2)[data-reveal] { transition-delay: 0.08s; }
 .process__step:nth-child(3)[data-reveal] { transition-delay: 0.16s; }
@@ -1111,17 +1145,23 @@ p {
 
 @media (max-width: 1000px) {
   .hero__stage,
-  .services,
   .approach__grid,
   .contact__layout,
   .sectors__panel,
   .process__steps,
-  .platforms__grid {
+  .platforms__grid,
+  .offer-grid,
+  .offer--wide {
     grid-template-columns: 1fr;
   }
 
   .process__steps {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .offer--wide {
+    display: flex;
+    flex-direction: column;
   }
 
   .site-footer__grid {
