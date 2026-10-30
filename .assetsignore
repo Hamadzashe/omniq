@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+!.env.example
+node_modules
+server/node_modules
+server
+functions
+.vscode
+.idea
+*.log
+README.md
+.gitignore
+.assetsignore
+wrangler.toml
+worker.js
