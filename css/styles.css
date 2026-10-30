@@ -923,6 +923,22 @@ p {
   margin-top: 0.35rem;
 }
 
+.contact__status {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.contact__status.is-success {
+  color: var(--accent);
+}
+
+.contact__status.is-error {
+  color: #9f1239;
+}
+
 /* Footer: compact dark multi-column style */
 .site-footer {
   margin-top: 2rem;

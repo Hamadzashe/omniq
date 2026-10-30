@@ -54,21 +54,67 @@
   }
 
   const form = document.querySelector(".contact__form");
+  const statusEl = document.getElementById("contact-status");
+
+  const setStatus = (message, type) => {
+    if (!statusEl) return;
+    statusEl.hidden = !message;
+    statusEl.textContent = message || "";
+    statusEl.classList.remove("is-success", "is-error");
+    if (type) statusEl.classList.add(type);
+  };
+
   if (form) {
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const button = form.querySelector('button[type="submit"]');
       if (!button) return;
 
       const original = button.textContent;
-      button.textContent = "Received, thank you";
-      button.disabled = true;
-      form.reset();
+      const payload = {
+        name: form.name.value.trim(),
+        email: form.email.value.trim(),
+        organisation: form.organisation.value.trim(),
+        message: form.message.value.trim(),
+      };
 
-      window.setTimeout(() => {
+      if (!payload.name || !payload.email || !payload.message) {
+        setStatus("Please complete name, email, and message.", "is-error");
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = "Sending…";
+      setStatus("");
+
+      try {
+        const response = await fetch("/api/contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error || "Unable to send message.");
+        }
+
+        form.reset();
+        setStatus("Message sent. We will get back to you soon.", "is-success");
+        button.textContent = "Sent";
+      } catch (error) {
+        setStatus(
+          error.message || "Something went wrong. Please try again.",
+          "is-error"
+        );
         button.textContent = original;
-        button.disabled = false;
-      }, 2400);
+      } finally {
+        window.setTimeout(() => {
+          button.textContent = original;
+          button.disabled = false;
+        }, 2200);
+      }
     });
   }
 

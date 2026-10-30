@@ -354,7 +354,13 @@
               <li>Software delivery and ongoing support</li>
             </ul>
           </div>
-          <form class="contact__form glass" action="#" method="post" data-reveal>
+          <form
+            class="contact__form glass"
+            action="/api/contact"
+            method="post"
+            data-reveal
+            novalidate
+          >
             <div class="field">
               <label for="name">Name</label>
               <input id="name" name="name" type="text" autocomplete="name" required />
@@ -382,6 +388,7 @@
               <label for="message">Project or challenge</label>
               <textarea id="message" name="message" rows="4" required></textarea>
             </div>
+            <p class="contact__status" id="contact-status" role="status" aria-live="polite" hidden></p>
             <div class="contact__submit">
               <button class="btn btn--solid" type="submit">Send message</button>
             </div>
