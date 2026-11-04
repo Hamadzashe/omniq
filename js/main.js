@@ -16,39 +16,39 @@
 
   const seo = {
     "/": {
-      title: "OMNIQ Integrated Systems | IT, DPO & Digital Solutions Zimbabwe",
+      title: "OMNIQ Integrated Systems | IT Solutions & DPO Services Zimbabwe",
       description:
-        "OMNIQ Integrated Systems (Private) Limited delivers DPO services, website development, software, cybersecurity, cloud, and healthcare platforms like Poneswa for public and private organisations in Zimbabwe.",
+        "OMNIQ Integrated Systems provides professional DPO services, software development, cybersecurity, web design, data analytics and digital solutions in Zimbabwe.",
     },
     "/services": {
-      title: "Services | DPO, Websites, Software & Digital | OMNIQ",
+      title: "DPO, Software & Digital Services Zimbabwe | OMNIQ",
       description:
-        "Explore OMNIQ services: Data Protection Officer support, website development, social media, digital marketing, brand management, document management, printing, software, mobile apps, analytics, and licensing.",
+        "DPO consultancy and Cyber and Data Protection Act support, website development, software development, cybersecurity, data analytics and digital solutions from OMNIQ in Zimbabwe.",
     },
     "/platforms": {
       title: "Poneswa Healthcare Platform | OMNIQ Integrated Systems",
       description:
-        "Poneswa is OMNIQ's healthcare platform for reception, nursing, consultations, and patient mobile apps, built for real clinic workflows.",
+        "Poneswa is OMNIQ's healthcare platform for reception, nursing, consultations, and patient mobile apps, built for real clinic workflows in Zimbabwe.",
     },
     "/process": {
-      title: "How We Work | OMNIQ Integrated Systems",
+      title: "How We Work | OMNIQ Integrated Systems Zimbabwe",
       description:
-        "OMNIQ's delivery process: understand, design, deliver, and support integrated systems programmes for lasting results.",
+        "OMNIQ's delivery process: understand, design, deliver, and support integrated IT and DPO programmes for lasting results.",
     },
     "/about": {
       title: "About OMNIQ Integrated Systems (Private) Limited",
       description:
-        "Learn about OMNIQ Integrated Systems (Private) Limited, a Zimbabwe technology firm focused on integrated systems, software, and digital solutions.",
+        "OMNIQ Integrated Systems (Private) Limited is a Zimbabwe firm focused on DPO services, software development, cybersecurity, and digital solutions.",
     },
     "/sectors": {
-      title: "Who We Serve | Public & Private Sector | OMNIQ",
+      title: "Who We Serve | Public & Private Sector | OMNIQ Zimbabwe",
       description:
-        "OMNIQ partners with government, enterprise, and operations-critical organisations that need reliable, accountable technology delivery.",
+        "OMNIQ partners with government, enterprise, and operations-critical organisations in Zimbabwe that need reliable, accountable technology delivery.",
     },
     "/contact": {
-      title: "Contact OMNIQ Integrated Systems",
+      title: "Contact OMNIQ Integrated Systems | Zimbabwe",
       description:
-        "Contact OMNIQ to discuss DPO services, software projects, websites, platforms, or integrated systems support for your organisation.",
+        "Contact OMNIQ at hamadzashe@omniq.co.zw or +263 718 093 349 to discuss DPO services, software development, websites, or digital solutions in Zimbabwe.",
     },
   };
 
