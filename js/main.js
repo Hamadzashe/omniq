@@ -1,4 +1,6 @@
 (() => {
+  const SITE = "https://omniq.co.zw";
+
   const year = document.getElementById("year");
   if (year) year.textContent = String(new Date().getFullYear());
 
@@ -12,14 +14,42 @@
     "/contact": "contact",
   };
 
-  const titles = {
-    "/": "OMNIQ Integrated Systems",
-    "/services": "Services | OMNIQ Integrated Systems",
-    "/platforms": "Platforms | OMNIQ Integrated Systems",
-    "/process": "Process | OMNIQ Integrated Systems",
-    "/about": "About | OMNIQ Integrated Systems",
-    "/sectors": "Who we serve | OMNIQ Integrated Systems",
-    "/contact": "Contact | OMNIQ Integrated Systems",
+  const seo = {
+    "/": {
+      title: "OMNIQ Integrated Systems | IT, DPO & Digital Solutions Zimbabwe",
+      description:
+        "OMNIQ Integrated Systems (Private) Limited delivers DPO services, website development, software, cybersecurity, cloud, and healthcare platforms like Poneswa for public and private organisations in Zimbabwe.",
+    },
+    "/services": {
+      title: "Services | DPO, Websites, Software & Digital | OMNIQ",
+      description:
+        "Explore OMNIQ services: Data Protection Officer support, website development, social media, digital marketing, brand management, document management, printing, software, mobile apps, analytics, and licensing.",
+    },
+    "/platforms": {
+      title: "Poneswa Healthcare Platform | OMNIQ Integrated Systems",
+      description:
+        "Poneswa is OMNIQ's healthcare platform for reception, nursing, consultations, and patient mobile apps, built for real clinic workflows.",
+    },
+    "/process": {
+      title: "How We Work | OMNIQ Integrated Systems",
+      description:
+        "OMNIQ's delivery process: understand, design, deliver, and support integrated systems programmes for lasting results.",
+    },
+    "/about": {
+      title: "About OMNIQ Integrated Systems (Private) Limited",
+      description:
+        "Learn about OMNIQ Integrated Systems (Private) Limited, a Zimbabwe technology firm focused on integrated systems, software, and digital solutions.",
+    },
+    "/sectors": {
+      title: "Who We Serve | Public & Private Sector | OMNIQ",
+      description:
+        "OMNIQ partners with government, enterprise, and operations-critical organisations that need reliable, accountable technology delivery.",
+    },
+    "/contact": {
+      title: "Contact OMNIQ Integrated Systems",
+      description:
+        "Contact OMNIQ to discuss DPO services, software projects, websites, platforms, or integrated systems support for your organisation.",
+    },
   };
 
   const header = document.querySelector("[data-header]");
@@ -60,6 +90,25 @@
     return pathname.replace(/\/+$/, "") || "/";
   };
 
+  const setMeta = (selector, attr, value) => {
+    const el = document.querySelector(selector);
+    if (el) el.setAttribute(attr, value);
+  };
+
+  const applySeo = (path) => {
+    const meta = seo[path] || seo["/"];
+    const url = path === "/" ? `${SITE}/` : `${SITE}${path}`;
+
+    document.title = meta.title;
+    setMeta('meta[name="description"]', "content", meta.description);
+    setMeta('link[rel="canonical"]', "href", url);
+    setMeta('meta[property="og:url"]', "content", url);
+    setMeta('meta[property="og:title"]', "content", meta.title);
+    setMeta('meta[property="og:description"]', "content", meta.description);
+    setMeta('meta[name="twitter:title"]', "content", meta.title);
+    setMeta('meta[name="twitter:description"]', "content", meta.description);
+  };
+
   const scrollToSection = (id, behavior = "smooth") => {
     if (id === "home") {
       window.scrollTo({ top: 0, behavior });
@@ -82,7 +131,8 @@
       history.replaceState({ path: finalPath }, "", finalPath);
     }
 
-    document.title = titles[finalPath] || titles["/"];
+    applySeo(finalPath);
+
     document.querySelectorAll(".nav a").forEach((link) => {
       const href = normalizePath(link.getAttribute("href") || "");
       link.classList.toggle("is-active", href === finalPath);
@@ -124,7 +174,6 @@
     applyRoute(window.location.pathname, { scroll: true });
   });
 
-  // Support old hash links and first load of clean paths
   const boot = () => {
     if (window.location.hash) {
       const hash = window.location.hash.replace("#", "");
