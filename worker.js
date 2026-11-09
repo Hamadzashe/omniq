@@ -139,24 +139,30 @@ async function handleContact(request, env) {
 async function serveAssets(request, env, pathname) {
   const url = new URL(request.url);
   const assetUrl = new URL(pathname, url.origin);
-  return env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+  // Follow asset redirects internally so the browser never enters a loop
+  // (e.g. /admin/index.html -> /admin/)
+  let res = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+  let hops = 0;
+  while (res.status >= 300 && res.status < 400 && hops < 3) {
+    const loc = res.headers.get("Location");
+    if (!loc) break;
+    const next = new URL(loc, url.origin);
+    res = await env.ASSETS.fetch(new Request(next.toString(), request));
+    hops += 1;
+  }
+  return res;
 }
 
 async function handleAdminHost(request, env, url) {
   const path = url.pathname;
-
-  // Prefer clean root URL on the admin subdomain
-  if (path === "/admin" || path === "/admin/") {
-    return Response.redirect(`${url.origin}/`, 302);
-  }
 
   // Shared public assets (logo, favicons)
   if (path.startsWith("/assets/")) {
     return env.ASSETS.fetch(request);
   }
 
-  // Admin app static files (/admin/css, /admin/js, /admin/assets)
-  if (path.startsWith("/admin/")) {
+  // Admin app static files (/admin/css, /admin/js, /admin/assets, /admin/)
+  if (path === "/admin" || path.startsWith("/admin/")) {
     return env.ASSETS.fetch(request);
   }
 
@@ -165,8 +171,8 @@ async function handleAdminHost(request, env, url) {
     return serveAssets(request, env, `/admin${path}`);
   }
 
-  // SPA shell for / and client-side admin routes
-  return serveAssets(request, env, "/admin/index.html");
+  // SPA shell for / — fetch /admin/ content without sending a browser redirect
+  return serveAssets(request, env, "/admin/");
 }
 
 export default {
