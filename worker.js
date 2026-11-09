@@ -145,12 +145,17 @@ async function serveAssets(request, env, pathname) {
 async function handleAdminHost(request, env, url) {
   const path = url.pathname;
 
+  // Prefer clean root URL on the admin subdomain
+  if (path === "/admin" || path === "/admin/") {
+    return Response.redirect(`${url.origin}/`, 302);
+  }
+
   // Shared public assets (logo, favicons)
   if (path.startsWith("/assets/")) {
     return env.ASSETS.fetch(request);
   }
 
-  // Admin app static files
+  // Admin app static files (/admin/css, /admin/js, /admin/assets)
   if (path.startsWith("/admin/")) {
     return env.ASSETS.fetch(request);
   }

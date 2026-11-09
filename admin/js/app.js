@@ -168,34 +168,47 @@ function showApp() {
 
 function closeModal() {
   $("#modal-root").innerHTML = "";
+  document.body.classList.remove("modal-open");
 }
 
 function openModal(title, bodyHtml, onSubmit) {
   const root = $("#modal-root");
+  document.body.classList.add("modal-open");
   root.innerHTML = `
-    <div class="modal-backdrop" data-close>
-      <form class="modal" id="modal-form">
+    <div class="modal-backdrop" id="modal-backdrop" role="presentation">
+      <form class="modal" id="modal-form" role="dialog" aria-modal="true">
         <h2>${escapeHtml(title)}</h2>
         ${bodyHtml}
         <div class="modal__actions">
-          <button type="button" class="btn btn--ghost" data-close>Cancel</button>
+          <button type="button" class="btn btn--ghost" id="modal-cancel">Cancel</button>
           <button type="submit" class="btn btn--primary">Save</button>
         </div>
       </form>
     </div>
   `;
   refreshIcons();
-  root.querySelectorAll("[data-close]").forEach((el) => {
-    el.addEventListener("click", (e) => {
-      if (e.target.hasAttribute("data-close") || e.target.closest("[data-close]") === el) {
-        if (e.target === el || e.currentTarget === el) closeModal();
-      }
-    });
+
+  const backdrop = $("#modal-backdrop");
+  const form = $("#modal-form");
+  $("#modal-cancel")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    closeModal();
   });
-  root.querySelector(".modal-backdrop")?.addEventListener("click", (e) => {
-    if (e.target.classList.contains("modal-backdrop")) closeModal();
+
+  // Ignore the same tap/click that opened the modal (common on mobile)
+  let allowBackdropClose = false;
+  window.setTimeout(() => {
+    allowBackdropClose = true;
+  }, 350);
+
+  backdrop?.addEventListener("click", (e) => {
+    if (!allowBackdropClose) return;
+    if (e.target === backdrop) closeModal();
   });
-  $("#modal-form").addEventListener("submit", async (e) => {
+
+  form?.addEventListener("click", (e) => e.stopPropagation());
+  form?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const values = Object.fromEntries(fd.entries());
@@ -206,6 +219,17 @@ function openModal(title, bodyHtml, onSubmit) {
       toast(err.message || "Could not save.");
     }
   });
+}
+
+function runAction(fn) {
+  // Defer so the opening click cannot hit the new modal backdrop
+  window.setTimeout(() => {
+    try {
+      fn();
+    } catch (err) {
+      toast(err.message || "Action failed.");
+    }
+  }, 0);
 }
 
 async function loadAll() {
@@ -408,11 +432,12 @@ function renderReceipt(receiptId) {
   $("#receipt-print").innerHTML = html;
   $("#receipt-print").classList.remove("hidden");
   openModal("Receipt", html + `<p class="empty">Use Print to save a PDF.</p>`, async () => {});
-  // Replace modal submit with close-only
   const actions = $(".modal__actions");
   if (actions) {
-    actions.innerHTML = `<button type="button" class="btn btn--primary" data-close>Close</button>`;
-    actions.querySelector("[data-close]")?.addEventListener("click", closeModal);
+    actions.innerHTML = `<button type="button" class="btn btn--primary" id="modal-close-receipt">Close</button>`;
+    $("#modal-close-receipt")?.addEventListener("click", closeModal);
+    const submit = $("#modal-form button[type='submit']");
+    submit?.remove();
   }
 }
 
@@ -539,6 +564,10 @@ function renderDashboard() {
   `;
 }
 
+function emptyCard(message) {
+  return `<div class="card"><div class="empty">${escapeHtml(message)}</div></div>`;
+}
+
 function renderClients() {
   const rows = state.cache.clients.filter((c) =>
     matchesSearch(`${c.name} ${c.organisation} ${c.email} ${c.phone}`)
@@ -549,35 +578,27 @@ function renderClients() {
         <h1>Clients</h1>
         <p>Store organisations and contacts for billing and DPO work.</p>
       </div>
-      <button class="btn btn--primary" data-action="client-new">Add client</button>
+      <button class="btn btn--primary" type="button" data-action="client-new">Add client</button>
     </div>
-    <div class="card table-wrap">
-      <table>
-        <thead>
-          <tr><th>Name</th><th>Organisation</th><th>Email</th><th>Phone</th><th></th></tr>
-        </thead>
-        <tbody>
-          ${
-            rows.length
-              ? rows
-                  .map(
-                    (c) => `<tr>
-                      <td>${escapeHtml(c.name)}</td>
-                      <td>${escapeHtml(c.organisation || "—")}</td>
-                      <td>${escapeHtml(c.email || "—")}</td>
-                      <td>${escapeHtml(c.phone || "—")}</td>
-                      <td class="row-actions">
-                        <button class="btn btn--ghost btn--sm" data-action="client-edit" data-id="${c.id}">Edit</button>
-                        <button class="btn btn--danger btn--sm" data-action="client-del" data-id="${c.id}">Delete</button>
-                      </td>
-                    </tr>`
-                  )
-                  .join("")
-              : `<tr><td colspan="5" class="empty">No clients yet.</td></tr>`
-          }
-        </tbody>
-      </table>
-    </div>
+    ${
+      rows.length
+        ? `<div class="stack-list">${rows
+            .map(
+              (c) => `<article class="stack-card">
+                <div class="stack-card__main">
+                  <strong>${escapeHtml(c.name)}</strong>
+                  <span>${escapeHtml(c.organisation || "No organisation")}</span>
+                  <span>${escapeHtml(c.email || "No email")}${c.phone ? ` · ${escapeHtml(c.phone)}` : ""}</span>
+                </div>
+                <div class="row-actions">
+                  <button class="btn btn--ghost btn--sm" type="button" data-action="client-edit" data-id="${c.id}">Edit</button>
+                  <button class="btn btn--danger btn--sm" type="button" data-action="client-del" data-id="${c.id}">Delete</button>
+                </div>
+              </article>`
+            )
+            .join("")}</div>`
+        : emptyCard("No clients yet.")
+    }
   `;
 }
 
@@ -591,32 +612,25 @@ function renderServices() {
         <h1>Services</h1>
         <p>Catalogue from the public site, plus custom services you add.</p>
       </div>
-      <button class="btn btn--primary" data-action="service-new">Add custom service</button>
+      <button class="btn btn--primary" type="button" data-action="service-new">Add custom service</button>
     </div>
-    <div class="card table-wrap">
-      <table>
-        <thead>
-          <tr><th>Service</th><th>Billing</th><th>Default fee</th><th>Type</th><th>Active</th><th></th></tr>
-        </thead>
-        <tbody>
-          ${rows
-            .map(
-              (s) => `<tr>
-                <td><strong>${escapeHtml(s.name)}</strong><br/><span style="color:#6b7385;font-size:0.82rem">${escapeHtml(
-                  s.description || ""
-                )}</span></td>
-                <td>${escapeHtml(s.billing_cycle)}${s.is_recurring ? " · recurring" : ""}</td>
-                <td>${s.default_amount != null ? money(s.default_amount, s.currency) : "—"}</td>
-                <td>${s.is_custom ? "Custom" : "Catalogue"}</td>
-                <td>${s.is_active ? "Yes" : "No"}</td>
-                <td class="row-actions">
-                  <button class="btn btn--ghost btn--sm" data-action="service-edit" data-id="${s.id}">Edit</button>
-                </td>
-              </tr>`
-            )
-            .join("")}
-        </tbody>
-      </table>
+    <div class="stack-list">
+      ${rows
+        .map(
+          (s) => `<article class="stack-card">
+            <div class="stack-card__main">
+              <strong>${escapeHtml(s.name)}</strong>
+              <span>${escapeHtml(s.description || "")}</span>
+              <span>${escapeHtml(s.billing_cycle)}${s.is_recurring ? " · recurring" : ""} · ${
+                s.default_amount != null ? money(s.default_amount, s.currency) : "No default fee"
+              } · ${s.is_custom ? "Custom" : "Catalogue"} · ${s.is_active ? "Active" : "Inactive"}</span>
+            </div>
+            <div class="row-actions">
+              <button class="btn btn--ghost btn--sm" type="button" data-action="service-edit" data-id="${s.id}">Edit</button>
+            </div>
+          </article>`
+        )
+        .join("")}
     </div>
   `;
 }
@@ -633,64 +647,40 @@ function renderDpo() {
         <h1>DPO engagements</h1>
         <p>Monthly retainers, SI 155 tiers, controller licensing, and POTRAZ DPO notification.</p>
       </div>
-      <button class="btn btn--primary" data-action="dpo-new">Add DPO client</button>
+      <button class="btn btn--primary" type="button" data-action="dpo-new">Add DPO client</button>
     </div>
-    <div class="card table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Client</th><th>Started</th><th>SI 155 tier</th><th>Controller</th>
-            <th>POTRAZ DPO notice</th><th>Monthly fee</th><th>Next due</th><th></th>
-          </tr>
-        </thead>
-        <tbody>
-          ${
-            rows.length
-              ? rows
-                  .map((d) => {
-                    const dueSoon =
-                      d.status === "active" && d.next_due_date <= todayISO();
-                    return `<tr>
-                      <td>
-                        <strong>${escapeHtml(d.clients?.organisation || d.clients?.name || "—")}</strong><br/>
-                        ${statusPill(d.status)}
-                      </td>
-                      <td>${fmtDate(d.start_date)}</td>
-                      <td>${escapeHtml(TIER_LABELS[d.si155_tier] || d.si155_tier)}</td>
-                      <td>${statusPill(d.controller_status === "pending" ? "pending_status" : d.controller_status)}${
-                        d.controller_licence_no
-                          ? `<br/><span style="font-size:0.78rem;color:#6b7385">${escapeHtml(
-                              d.controller_licence_no
-                            )}</span>`
-                          : ""
-                      }</td>
-                      <td>${statusPill(
-                        d.potra_dpo_notification === "pending"
-                          ? "pending_status"
-                          : d.potra_dpo_notification
-                      )}${
-                        d.potra_notification_date
-                          ? `<br/><span style="font-size:0.78rem;color:#6b7385">${fmtDate(
-                              d.potra_notification_date
-                            )}</span>`
-                          : ""
-                      }</td>
-                      <td>${money(d.monthly_fee, d.currency)}</td>
-                      <td>${fmtDate(d.next_due_date)} ${
-                        dueSoon ? statusPill("overdue") : ""
-                      }</td>
-                      <td class="row-actions">
-                        <button class="btn btn--ghost btn--sm" data-action="dpo-edit" data-id="${d.id}">Edit</button>
-                        <button class="btn btn--primary btn--sm" data-action="dpo-bill" data-id="${d.id}">Create due</button>
-                      </td>
-                    </tr>`;
-                  })
-                  .join("")
-              : `<tr><td colspan="8" class="empty">No DPO engagements yet.</td></tr>`
-          }
-        </tbody>
-      </table>
-    </div>
+    ${
+      rows.length
+        ? `<div class="stack-list">${rows
+            .map((d) => {
+              const dueSoon = d.status === "active" && d.next_due_date <= todayISO();
+              return `<article class="stack-card">
+                <div class="stack-card__main">
+                  <strong>${escapeHtml(d.clients?.organisation || d.clients?.name || "—")}</strong>
+                  <div class="stack-card__meta">${statusPill(d.status)} ${
+                    dueSoon ? statusPill("overdue") : ""
+                  }</div>
+                  <span>Started ${fmtDate(d.start_date)} · Next due ${fmtDate(d.next_due_date)}</span>
+                  <span>${escapeHtml(TIER_LABELS[d.si155_tier] || d.si155_tier)}</span>
+                  <span>Controller: ${escapeHtml(d.controller_status.replaceAll("_", " "))}${
+                    d.controller_licence_no ? ` (${escapeHtml(d.controller_licence_no)})` : ""
+                  }</span>
+                  <span>POTRAZ DPO notice: ${escapeHtml(
+                    d.potra_dpo_notification.replaceAll("_", " ")
+                  )}${
+                    d.potra_notification_date ? ` · ${fmtDate(d.potra_notification_date)}` : ""
+                  }</span>
+                  <span class="stack-card__amount">${money(d.monthly_fee, d.currency)} / month</span>
+                </div>
+                <div class="row-actions">
+                  <button class="btn btn--ghost btn--sm" type="button" data-action="dpo-edit" data-id="${d.id}">Edit</button>
+                  <button class="btn btn--primary btn--sm" type="button" data-action="dpo-bill" data-id="${d.id}">Create due</button>
+                </div>
+              </article>`;
+            })
+            .join("")}</div>`
+        : emptyCard("No DPO engagements yet.")
+    }
   `;
 }
 
@@ -706,42 +696,34 @@ function renderBilling() {
         <h1>Billing</h1>
         <p>Track who owes what, for which service, and issue receipts when paid.</p>
       </div>
-      <button class="btn btn--primary" data-action="quick-payment">Add payment due</button>
+      <button class="btn btn--primary" type="button" data-action="quick-payment">Add payment due</button>
     </div>
-    <div class="card table-wrap">
-      <table>
-        <thead>
-          <tr><th>Client</th><th>Service / description</th><th>Due</th><th>Amount</th><th>Status</th><th></th></tr>
-        </thead>
-        <tbody>
-          ${
-            rows.length
-              ? rows
-                  .map((p) => {
-                    const st = paymentStatus(p);
-                    return `<tr>
-                      <td>${escapeHtml(p.clients?.organisation || p.clients?.name || "—")}</td>
-                      <td>${escapeHtml(p.description)}</td>
-                      <td>${fmtDate(p.due_date)}</td>
-                      <td>${money(p.amount, p.currency)}</td>
-                      <td>${statusPill(st)}</td>
-                      <td class="row-actions">
-                        ${
-                          st !== "paid" && st !== "cancelled"
-                            ? `<button class="btn btn--primary btn--sm" data-action="pay-receipt" data-id="${p.id}">Mark paid + receipt</button>`
-                            : p.receipt_id
-                              ? `<button class="btn btn--ghost btn--sm" data-action="receipt-view" data-id="${p.receipt_id}">View receipt</button>`
-                              : ""
-                        }
-                      </td>
-                    </tr>`;
-                  })
-                  .join("")
-              : `<tr><td colspan="6" class="empty">No billing records yet.</td></tr>`
-          }
-        </tbody>
-      </table>
-    </div>
+    ${
+      rows.length
+        ? `<div class="stack-list">${rows
+            .map((p) => {
+              const st = paymentStatus(p);
+              return `<article class="stack-card">
+                <div class="stack-card__main">
+                  <strong>${escapeHtml(p.clients?.organisation || p.clients?.name || "—")}</strong>
+                  <span>${escapeHtml(p.description)}</span>
+                  <span>Due ${fmtDate(p.due_date)} · ${statusPill(st)}</span>
+                  <span class="stack-card__amount">${money(p.amount, p.currency)}</span>
+                </div>
+                <div class="row-actions">
+                  ${
+                    st !== "paid" && st !== "cancelled"
+                      ? `<button class="btn btn--primary btn--sm" type="button" data-action="pay-receipt" data-id="${p.id}">Mark paid + receipt</button>`
+                      : p.receipt_id
+                        ? `<button class="btn btn--ghost btn--sm" type="button" data-action="receipt-view" data-id="${p.receipt_id}">View receipt</button>`
+                        : ""
+                  }
+                </div>
+              </article>`;
+            })
+            .join("")}</div>`
+        : emptyCard("No billing records yet.")
+    }
   `;
 }
 
@@ -758,55 +740,48 @@ function renderFinance() {
         <h1>Finance</h1>
         <p>Expenses and revenue for a clear income picture.</p>
       </div>
-      <div class="row-actions">
-        <button class="btn btn--ghost" data-action="expense-new">Add expense</button>
-        <button class="btn btn--primary" data-action="revenue-new">Add revenue</button>
+      <div class="row-actions page-head__actions">
+        <button class="btn btn--ghost" type="button" data-action="expense-new">Add expense</button>
+        <button class="btn btn--primary" type="button" data-action="revenue-new">Add revenue</button>
       </div>
     </div>
     <div class="grid grid--2">
-      <div class="card table-wrap">
-        <h3>Expenses</h3>
-        <table>
-          <thead><tr><th>Date</th><th>Title</th><th>Category</th><th>Amount</th></tr></thead>
-          <tbody>
-            ${
-              expenses.length
-                ? expenses
-                    .map(
-                      (e) => `<tr>
-                        <td>${fmtDate(e.expense_date)}</td>
-                        <td>${escapeHtml(e.title)}</td>
-                        <td>${escapeHtml(e.category || "—")}</td>
-                        <td>${money(e.amount, e.currency)}</td>
-                      </tr>`
-                    )
-                    .join("")
-                : `<tr><td colspan="4" class="empty">No expenses logged.</td></tr>`
-            }
-          </tbody>
-        </table>
-      </div>
-      <div class="card table-wrap">
-        <h3>Revenue</h3>
-        <table>
-          <thead><tr><th>Date</th><th>Title</th><th>Amount</th></tr></thead>
-          <tbody>
-            ${
-              revenue.length
-                ? revenue
-                    .map(
-                      (r) => `<tr>
-                        <td>${fmtDate(r.entry_date)}</td>
-                        <td>${escapeHtml(r.title)}</td>
-                        <td>${money(r.amount, r.currency)}</td>
-                      </tr>`
-                    )
-                    .join("")
-                : `<tr><td colspan="3" class="empty">No revenue entries yet.</td></tr>`
-            }
-          </tbody>
-        </table>
-      </div>
+      <section>
+        <h3 class="section-label">Expenses</h3>
+        ${
+          expenses.length
+            ? `<div class="stack-list">${expenses
+                .map(
+                  (e) => `<article class="stack-card">
+                    <div class="stack-card__main">
+                      <strong>${escapeHtml(e.title)}</strong>
+                      <span>${fmtDate(e.expense_date)} · ${escapeHtml(e.category || "Uncategorised")}</span>
+                      <span class="stack-card__amount">${money(e.amount, e.currency)}</span>
+                    </div>
+                  </article>`
+                )
+                .join("")}</div>`
+            : emptyCard("No expenses logged.")
+        }
+      </section>
+      <section>
+        <h3 class="section-label">Revenue</h3>
+        ${
+          revenue.length
+            ? `<div class="stack-list">${revenue
+                .map(
+                  (r) => `<article class="stack-card">
+                    <div class="stack-card__main">
+                      <strong>${escapeHtml(r.title)}</strong>
+                      <span>${fmtDate(r.entry_date)}</span>
+                      <span class="stack-card__amount">${money(r.amount, r.currency)}</span>
+                    </div>
+                  </article>`
+                )
+                .join("")}</div>`
+            : emptyCard("No revenue entries yet.")
+        }
+      </section>
     </div>
   `;
 }
@@ -824,30 +799,25 @@ function renderReceipts() {
         <p>Professional receipts with the OMNIQ logo for paid services.</p>
       </div>
     </div>
-    <div class="card table-wrap">
-      <table>
-        <thead>
-          <tr><th>Number</th><th>Client</th><th>Issued</th><th>Amount</th><th></th></tr>
-        </thead>
-        <tbody>
-          ${
-            rows.length
-              ? rows
-                  .map(
-                    (r) => `<tr>
-                      <td>${escapeHtml(r.receipt_number)}</td>
-                      <td>${escapeHtml(r.clients?.organisation || r.clients?.name || "—")}</td>
-                      <td>${fmtDate(r.issued_at)}</td>
-                      <td>${money(r.amount, r.currency)}</td>
-                      <td><button class="btn btn--ghost btn--sm" data-action="receipt-view" data-id="${r.id}">Open</button></td>
-                    </tr>`
-                  )
-                  .join("")
-              : `<tr><td colspan="5" class="empty">No receipts yet. Mark a payment as paid to create one.</td></tr>`
-          }
-        </tbody>
-      </table>
-    </div>
+    ${
+      rows.length
+        ? `<div class="stack-list">${rows
+            .map(
+              (r) => `<article class="stack-card">
+                <div class="stack-card__main">
+                  <strong>${escapeHtml(r.receipt_number)}</strong>
+                  <span>${escapeHtml(r.clients?.organisation || r.clients?.name || "—")}</span>
+                  <span>Issued ${fmtDate(r.issued_at)}</span>
+                  <span class="stack-card__amount">${money(r.amount, r.currency)}</span>
+                </div>
+                <div class="row-actions">
+                  <button class="btn btn--ghost btn--sm" type="button" data-action="receipt-view" data-id="${r.id}">Open</button>
+                </div>
+              </article>`
+            )
+            .join("")}</div>`
+        : emptyCard("No receipts yet. Mark a payment as paid to create one.")
+    }
   `;
 }
 
@@ -1236,11 +1206,15 @@ function bindUi() {
   $("#page-root").addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-action]");
     if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
     const { action, id } = btn.dataset;
 
-    if (action === "client-new") return clientForm();
+    if (action === "client-new") return runAction(() => clientForm());
     if (action === "client-edit") {
-      return clientForm(state.cache.clients.find((c) => c.id === id));
+      return runAction(() =>
+        clientForm(state.cache.clients.find((c) => c.id === id))
+      );
     }
     if (action === "client-del") {
       if (!confirm("Delete this client?")) return;
@@ -1249,19 +1223,21 @@ function bindUi() {
       await refresh();
       return toast("Client deleted.");
     }
-    if (action === "service-new") return serviceForm();
+    if (action === "service-new") return runAction(() => serviceForm());
     if (action === "service-edit") {
-      return serviceForm(state.cache.services.find((s) => s.id === id));
+      return runAction(() =>
+        serviceForm(state.cache.services.find((s) => s.id === id))
+      );
     }
     if (action === "dpo-new") {
       if (!state.cache.clients.length) return toast("Add a client first.");
-      return dpoForm();
+      return runAction(() => dpoForm());
     }
     if (action === "dpo-edit") {
-      return dpoForm(state.cache.dpo.find((d) => d.id === id));
+      return runAction(() => dpoForm(state.cache.dpo.find((d) => d.id === id)));
     }
     if (action === "dpo-bill") return createDpoDue(id);
-    if (action === "quick-payment") return paymentForm();
+    if (action === "quick-payment") return runAction(() => paymentForm());
     if (action === "pay-receipt") {
       try {
         await createReceiptForPayment(id);
@@ -1270,9 +1246,9 @@ function bindUi() {
       }
       return;
     }
-    if (action === "receipt-view") return renderReceipt(id);
-    if (action === "expense-new") return expenseForm();
-    if (action === "revenue-new") return revenueForm();
+    if (action === "receipt-view") return runAction(() => renderReceipt(id));
+    if (action === "expense-new") return runAction(() => expenseForm());
+    if (action === "revenue-new") return runAction(() => revenueForm());
   });
 }
 
