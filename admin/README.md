@@ -6,10 +6,9 @@ Private directors console for clients, DPO (SI 155), billing, finance, and recei
 
 | Environment | URL |
 |-------------|-----|
-| Production (preferred) | `https://admin.omniq.co.zw` |
-| Same project fallback | `https://omniq.co.zw/admin` |
+| Production | `https://admin.omniq.co.zw` |
 
-No login link is shown on the public marketing site.
+`https://omniq.co.zw/admin` redirects to the admin subdomain. No login link on the public site.
 
 ## Cloudflare subdomain
 
@@ -23,14 +22,11 @@ Later you can move `/admin` into its own Pages project and point only the `admin
 
 Project: **OMNIQ Admin** (`ptsmyssrtyfzdjnhkzzm`)
 
-1. **Authentication → Users** → Add user  
-   - `hamadzashe@omniq.co.zw`  
-   - `directors@omniq.co.zw` (shared directors mailbox)  
-   - Set passwords and share securely with directors  
+1. Staff users are seeded for `hamadzashe@omniq.co.zw` and `directors@omniq.co.zw` (change passwords after first login).  
 2. **Authentication → URL configuration**  
    - Site URL: `https://admin.omniq.co.zw`  
-   - Redirect URLs: `https://admin.omniq.co.zw/**`, `https://omniq.co.zw/admin/**`  
-3. Optional but recommended: disable public sign-ups; only invite `@omniq.co.zw` users  
+   - Redirect URLs: `https://admin.omniq.co.zw/**`  
+3. Disable public sign-ups; only invite `@omniq.co.zw` users  
 4. RLS allows only authenticated users whose JWT email ends with `@omniq.co.zw`
 
 ## Modules

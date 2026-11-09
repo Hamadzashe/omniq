@@ -184,9 +184,13 @@ export default {
       return handleAdminHost(request, env, url);
     }
 
-    // Public site: keep /admin available before the subdomain is attached
-    if (url.pathname === "/admin" || url.pathname === "/admin/") {
-      return serveAssets(request, env, "/admin/index.html");
+    // Public marketing site must not expose /admin — use admin.omniq.co.zw only
+    if (
+      url.pathname === "/admin" ||
+      url.pathname === "/admin/" ||
+      url.pathname.startsWith("/admin/")
+    ) {
+      return Response.redirect("https://admin.omniq.co.zw/", 302);
     }
 
     return env.ASSETS.fetch(request);

@@ -10,6 +10,6 @@ window.OMNIQ_ADMIN = {
     email: "hamadzashe@omniq.co.zw",
     phone: "+263 718 093 349",
     country: "Zimbabwe",
-    logoUrl: "/assets/omniq-logo.png",
+    logoUrl: "/admin/assets/omniq-logo.png",
   },
 };
