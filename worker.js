@@ -192,21 +192,30 @@ export default {
     }
 
     if (isAdminHost(url.hostname)) {
-      return handleAdminHost(request, env, url);
+      const adminResponse = await handleAdminHost(request, env, url);
+      const headers = new Headers(adminResponse.headers);
+      headers.set("X-Robots-Tag", "noindex, nofollow");
+      headers.set("Cache-Control", headers.get("Cache-Control") || "private, no-store");
+      return new Response(adminResponse.body, {
+        status: adminResponse.status,
+        statusText: adminResponse.statusText,
+        headers,
+      });
     }
 
-    // Public marketing site: /admin must not work. Admin lives only on admin.omniq.co.zw
+    // Public marketing site: never expose admin app files
     if (
       url.pathname === "/admin" ||
       url.pathname === "/admin/" ||
-      url.pathname.startsWith("/admin/")
+      url.pathname.startsWith("/admin/") ||
+      url.pathname.startsWith("/admin.")
     ) {
       return new Response("Not Found", {
         status: 404,
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
           "Cache-Control": "no-store",
-          "X-Robots-Tag": "noindex",
+          "X-Robots-Tag": "noindex, nofollow",
         },
       });
     }

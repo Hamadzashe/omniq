@@ -470,15 +470,28 @@ function renderReceipt(receiptId) {
       </div>
     </div>
   `;
-  $("#receipt-print").innerHTML = html;
-  $("#receipt-print").classList.remove("hidden");
-  openModal("Receipt", html + `<p class="empty">Use Print to save a PDF.</p>`, async () => {});
+  // Keep a print-only copy off-screen; never show it in the page body
+  const printHost = $("#receipt-print");
+  if (printHost) {
+    printHost.innerHTML = html;
+    printHost.setAttribute("aria-hidden", "true");
+  }
+
+  openModal(
+    "Receipt",
+    `<div class="receipt-modal-body">${html}</div>
+     <p class="lede-mini">Use Print to save or share a PDF. This stays in the dialog only.</p>`,
+    async () => {}
+  );
   const actions = $(".modal__actions");
   if (actions) {
-    actions.innerHTML = `<button type="button" class="btn btn--primary" id="modal-close-receipt">Close</button>`;
+    actions.innerHTML = `
+      <button type="button" class="btn btn--ghost" id="modal-close-receipt">Close</button>
+      <button type="button" class="btn btn--primary" id="modal-print-receipt">Print / Save PDF</button>
+    `;
     $("#modal-close-receipt")?.addEventListener("click", closeModal);
-    const submit = $("#modal-form button[type='submit']");
-    submit?.remove();
+    $("#modal-print-receipt")?.addEventListener("click", () => window.print());
+    $("#modal-form button[type='submit']")?.remove();
   }
 }
 

@@ -782,6 +782,28 @@ th {
   display: none !important;
 }
 
+/* Receipt HTML for window.print only — never show in the scrolling page */
+#receipt-print {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 800px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.receipt-modal-body .receipt-sheet {
+  box-shadow: none;
+  border: 1px solid var(--line);
+  margin: 0;
+  width: 100%;
+}
+
+.receipt-modal-body .row-actions {
+  display: none;
+}
+
 .toast {
   position: fixed;
   right: 1rem;
@@ -1035,20 +1057,30 @@ th {
 
 @media print {
   body * {
-    visibility: hidden;
+    visibility: hidden !important;
   }
 
   #receipt-print,
   #receipt-print * {
-    visibility: visible;
+    visibility: visible !important;
   }
 
   #receipt-print {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    border: 0;
-    box-shadow: none;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    z-index: 1 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .modal-backdrop,
+  .sidebar,
+  .topbar,
+  .sidebar-backdrop {
+    display: none !important;
   }
 }
