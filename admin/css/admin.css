@@ -31,12 +31,22 @@
 html,
 body {
   margin: 0;
-  min-height: 100%;
+  height: 100%;
   font-family: var(--font);
   color: var(--text);
   background: var(--canvas);
   overflow-x: hidden;
   max-width: 100%;
+}
+
+body:not(.login-body) {
+  overflow: hidden;
+}
+
+body.login-body {
+  overflow: auto;
+  min-height: 100%;
+  height: auto;
 }
 
 body.modal-open {
@@ -252,8 +262,10 @@ body.login-body {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 250px 1fr;
-  min-height: 100vh;
+  grid-template-columns: 250px minmax(0, 1fr);
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -263,9 +275,10 @@ body.login-body {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  position: sticky;
-  top: 0;
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .sidebar__brand {
@@ -379,8 +392,11 @@ body.login-body {
 
 .main {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .topbar {
@@ -448,8 +464,12 @@ body.login-body {
 .content {
   padding: 1.25rem 1.5rem 2rem;
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
   overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .page-head > div {
@@ -932,6 +952,7 @@ th {
     transition: transform 0.2s ease;
     z-index: 40;
     height: 100dvh;
+    overflow-y: auto;
   }
 
   .sidebar.is-open {

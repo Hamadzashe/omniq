@@ -416,7 +416,7 @@ async function createReceiptForPayment(paymentId) {
 
   await refresh();
   renderReceipt(receipt.id);
-  toast(`Receipt ${receiptNumber} created. Added to Finance → Income.`);
+  toast(`Receipt ${receiptNumber} created.`);
 }
 
 function buildReceiptHtml(receipt, client, { forPrint = false } = {}) {
@@ -489,7 +489,7 @@ function renderReceipt(receiptId) {
   openModal(
     "Receipt",
     `<div class="receipt-modal-body">${modalHtml}</div>
-     <p class="lede-mini no-print">Use Print to save or share a PDF.</p>`,
+     <p class="lede-mini no-print">Print or save this receipt as a PDF.</p>`,
     async () => {}
   );
   const actions = $(".modal__actions");
@@ -557,8 +557,8 @@ function renderDashboard() {
   return `
     <div class="welcome">
       <div>
-        <h2>Welcome back</h2>
-        <p>Track DPO retainers, client payments, expenses, and receipts in one place.</p>
+        <h2>Overview</h2>
+        <p>Clients, services, billing, and finance at a glance.</p>
       </div>
       <button class="btn btn--primary" type="button" data-action="quick-payment">Record payment due</button>
     </div>
@@ -607,7 +607,7 @@ function renderDashboard() {
                     </div>`;
                   })
                   .join("")
-              : `<div class="empty">No outstanding payments. Nice work.</div>`
+              : `<div class="empty">No outstanding payments.</div>`
           }
         </div>
       </div>
@@ -624,7 +624,7 @@ function renderDashboard() {
             )
             .join("")}
         </div>
-        <p class="stat__meta" style="margin-top:0.75rem">DPO monthly fees and other receipts appear here when marked paid.</p>
+        <p class="stat__meta" style="margin-top:0.75rem">Paid receipts recorded this week.</p>
       </div>
     </div>
   `;
@@ -642,7 +642,7 @@ function renderClients() {
     <div class="page-head">
       <div>
         <h1>Clients</h1>
-        <p>Store organisations and contacts for billing and DPO work.</p>
+        <p>Client and organisation records.</p>
       </div>
       <button class="btn btn--primary" type="button" data-action="client-new">Add client</button>
     </div>
@@ -693,15 +693,15 @@ function renderServices() {
     <div class="page-head">
       <div>
         <h1>Services</h1>
-        <p>Assign services to clients (like DPO), create payment dues, and mark paid to post income.</p>
+        <p>Service catalogue and client service engagements.</p>
       </div>
       <div class="row-actions page-head__actions">
         <button class="btn btn--ghost" type="button" data-action="service-new">Add catalogue item</button>
-        <button class="btn btn--primary" type="button" data-action="engagement-new">Assign to client</button>
+        <button class="btn btn--primary" type="button" data-action="engagement-new">New engagement</button>
       </div>
     </div>
 
-    <h3 class="section-label">Client service records</h3>
+    <h3 class="section-label">Client engagements</h3>
     ${
       engagements.length
         ? `<div class="stack-list" style="margin-bottom:1.25rem">${engagements
@@ -729,7 +729,7 @@ function renderServices() {
             })
             .join("")}</div>`
         : `<div style="margin-bottom:1.25rem">${emptyCard(
-            "No client service records yet. Assign a service to a client to track fees like DPO."
+            "No client service engagements yet."
           )}</div>`
     }
 
@@ -765,7 +765,7 @@ function renderDpo() {
     <div class="page-head">
       <div>
         <h1>DPO engagements</h1>
-        <p>Monthly retainers, SI 155 tiers, controller licensing, and POTRAZ notice. Create due → mark paid → Income + receipt.</p>
+        <p>Retainers, SI 155 tiers, controller registration, and POTRAZ notification status.</p>
       </div>
       <button class="btn btn--primary" type="button" data-action="dpo-new">Add DPO client</button>
     </div>
@@ -814,7 +814,7 @@ function renderBilling() {
     <div class="page-head">
       <div>
         <h1>Billing</h1>
-        <p>Track who owes what, for which service, and issue receipts when paid.</p>
+        <p>Outstanding and paid invoices for client services.</p>
       </div>
       <button class="btn btn--primary" type="button" data-action="quick-payment">Add payment due</button>
     </div>
@@ -865,7 +865,7 @@ function renderFinance() {
     <div class="page-head">
       <div>
         <h1>Finance</h1>
-        <p>Income from client payments, director capital introduced, and expenses. Capital is not operating revenue.</p>
+        <p>Income, capital contributions, and expenses.</p>
       </div>
       <div class="row-actions page-head__actions">
         <button class="btn btn--ghost" type="button" data-action="expense-new">Add expense</button>
@@ -876,13 +876,12 @@ function renderFinance() {
 
     <div class="grid grid--stats" style="margin-bottom:1rem">
       <div class="card stat stat--ok">
-        <div class="stat__label">Income (client / ops)</div>
+        <div class="stat__label">Income</div>
         <div class="stat__value">${money(incomeTotal)}</div>
       </div>
       <div class="card stat stat--accent">
         <div class="stat__label">Capital introduced</div>
         <div class="stat__value">${money(capitalTotal)}</div>
-        <div class="stat__meta">Director / owner funds</div>
       </div>
       <div class="card stat stat--warn">
         <div class="stat__label">Expenses</div>
@@ -891,20 +890,12 @@ function renderFinance() {
       <div class="card stat">
         <div class="stat__label">Operating result</div>
         <div class="stat__value">${money(incomeTotal - expenseTotal)}</div>
-        <div class="stat__meta">Income minus expenses</div>
       </div>
-    </div>
-
-    <div class="finance-note card" style="margin-bottom:1rem">
-      <strong>Director start-up funds:</strong>
-      record them under <em>Capital introduced</em>, not Income.
-      That keeps company money in the books without treating it as sales profit.
     </div>
 
     <div class="grid grid--2">
       <section>
         <h3 class="section-label">Income</h3>
-        <p class="lede-mini">From DPO / service payments marked paid (auto) or manual income.</p>
         ${
           income.length
             ? `<div class="stack-list">${income
@@ -913,19 +904,18 @@ function renderFinance() {
                     <div class="stack-card__main">
                       <strong>${escapeHtml(r.title)}</strong>
                       <span>${fmtDate(r.entry_date)}${
-                        r.source === "client_payment" ? " · From client payment" : " · Manual"
+                        r.source === "client_payment" ? " · Client payment" : ""
                       }</span>
                       <span class="stack-card__amount">${money(r.amount, r.currency)}</span>
                     </div>
                   </article>`
                 )
                 .join("")}</div>`
-            : emptyCard("No income yet. Mark a billing payment as paid, or add income manually.")
+            : emptyCard("No income recorded.")
         }
       </section>
       <section>
         <h3 class="section-label">Capital introduced</h3>
-        <p class="lede-mini">Money directors put in to start or fund operations.</p>
         ${
           capital.length
             ? `<div class="stack-list">${capital
@@ -941,7 +931,7 @@ function renderFinance() {
                   </article>`
                 )
                 .join("")}</div>`
-            : emptyCard("No capital contributions yet.")
+            : emptyCard("No capital contributions recorded.")
         }
       </section>
       <section class="finance-expenses">
@@ -959,7 +949,7 @@ function renderFinance() {
                   </article>`
                 )
                 .join("")}</div>`
-            : emptyCard("No expenses logged.")
+            : emptyCard("No expenses recorded.")
         }
       </section>
     </div>
@@ -976,7 +966,7 @@ function renderReceipts() {
     <div class="page-head">
       <div>
         <h1>Receipts</h1>
-        <p>Professional receipts with the OMNIQ logo for paid services.</p>
+        <p>Issued receipts for paid invoices.</p>
       </div>
     </div>
     ${
@@ -1279,7 +1269,7 @@ async function createDpoDue(engagementId) {
   await refresh();
   state.route = "billing";
   render();
-  toast("DPO payment due created. When marked paid, it posts to Finance → Income.");
+  toast("DPO payment due created.");
 }
 
 function engagementForm(existing = null) {
@@ -1288,7 +1278,7 @@ function engagementForm(existing = null) {
     return;
   }
   openModal(
-    existing ? "Edit client service" : "Assign service to client",
+    existing ? "Edit service engagement" : "New service engagement",
     `
       <div class="field"><label>Client</label><select name="client_id" required>${clientOptions(
         existing?.client_id || ""
@@ -1297,9 +1287,9 @@ function engagementForm(existing = null) {
         <option value="">Select service</option>
         ${nonDpoServiceOptions(existing?.service_id || "")}
       </select></div>
-      <div class="field"><label>Custom name (optional)</label><input name="service_name" value="${escapeHtml(
+      <div class="field"><label>Display name (optional)</label><input name="service_name" value="${escapeHtml(
         existing?.service_name || ""
-      )}" placeholder="Leave blank to use catalogue name" /></div>
+      )}" placeholder="Defaults to catalogue name" /></div>
       <div class="field"><label>Start date</label><input name="start_date" type="date" required value="${
         existing?.start_date || todayISO()
       }" /></div>
@@ -1384,18 +1374,17 @@ async function createServiceDue(engagementId) {
   await refresh();
   state.route = "billing";
   render();
-  toast("Payment due created. Mark paid to add Income + receipt.");
+  toast("Payment due created.");
 }
 
 function capitalForm() {
   openModal(
-    "Add capital introduced",
+    "Add capital contribution",
     `
-      <p class="lede-mini" style="margin-top:0">Director / owner funds for operations — not sales income.</p>
-      <div class="field"><label>Contributor</label><input name="contributor_name" required placeholder="e.g. Directors / Hamadzashe" value="Directors" /></div>
+      <div class="field"><label>Contributor</label><input name="contributor_name" required placeholder="Contributor name" value="Directors" /></div>
       <div class="field"><label>Amount</label><input name="amount" type="number" step="0.01" required /></div>
       <div class="field"><label>Date</label><input name="contribution_date" type="date" required value="${todayISO()}" /></div>
-      <div class="field"><label>Notes</label><textarea name="notes" placeholder="e.g. Start-up working capital"></textarea></div>
+      <div class="field"><label>Notes</label><textarea name="notes" placeholder="Optional notes"></textarea></div>
     `,
     async (values) => {
       const { error } = await sb.from("capital_contributions").insert({
@@ -1442,8 +1431,7 @@ function revenueForm() {
   openModal(
     "Add income",
     `
-      <p class="lede-mini" style="margin-top:0">Operating income only. Director funds belong under Capital introduced.</p>
-      <div class="field"><label>Title</label><input name="title" required placeholder="e.g. Consulting fee" /></div>
+      <div class="field"><label>Title</label><input name="title" required placeholder="Income description" /></div>
       <div class="field"><label>Amount</label><input name="amount" type="number" step="0.01" required /></div>
       <div class="field"><label>Date</label><input name="entry_date" type="date" required value="${todayISO()}" /></div>
       <div class="field"><label>Client (optional)</label><select name="client_id"><option value="">—</option>${clientOptions()}</select></div>
