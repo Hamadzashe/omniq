@@ -1,5 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /api/
+Disallow: /admin/
+Disallow: /admin
 
 Sitemap: https://omniq.co.zw/sitemap.xml

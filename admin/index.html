@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>OMNIQ Admin</title>
+    <link rel="icon" href="/assets/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Public+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/admin/css/admin.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/admin/js/config.js"></script>
+  </head>
+  <body>
+    <div id="login-view" class="login-body hidden">
+      <div class="login-card">
+        <img src="/assets/omniq-logo.png" alt="OMNIQ" width="140" height="56" />
+        <h1>OMNIQ Admin</h1>
+        <p>Directors and staff only. Use your @omniq.co.zw email.</p>
+        <form id="login-form">
+          <div class="field">
+            <label for="login-email">Work email</label>
+            <input
+              id="login-email"
+              name="email"
+              type="email"
+              autocomplete="username"
+              required
+              placeholder="you@omniq.co.zw"
+            />
+          </div>
+          <div class="field">
+            <label for="login-password">Password</label>
+            <input
+              id="login-password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+            />
+          </div>
+          <button class="btn btn--primary" type="submit" style="width: 100%">Sign in</button>
+          <p class="auth-status" id="login-status" role="status"></p>
+        </form>
+      </div>
+    </div>
+
+    <div id="app-view" class="app-shell hidden">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar__brand">
+          <img src="/assets/omniq-logo.png" alt="" width="42" height="42" />
+          <div>
+            <strong>OMNIQ</strong>
+            <span>Admin console</span>
+          </div>
+        </div>
+        <nav class="nav" id="main-nav" aria-label="Admin">
+          <button type="button" data-route="dashboard" class="is-active">
+            <span class="icon">⌂</span> Dashboard
+          </button>
+          <button type="button" data-route="clients">
+            <span class="icon">◎</span> Clients
+          </button>
+          <button type="button" data-route="services">
+            <span class="icon">✦</span> Services
+          </button>
+          <button type="button" data-route="dpo">
+            <span class="icon">▣</span> DPO
+          </button>
+          <button type="button" data-route="billing">
+            <span class="icon">💳</span> Billing
+          </button>
+          <button type="button" data-route="finance">
+            <span class="icon">📊</span> Finance
+          </button>
+          <button type="button" data-route="receipts">
+            <span class="icon">🧾</span> Receipts
+          </button>
+        </nav>
+        <div class="sidebar__user">
+          <strong id="user-name">Director</strong>
+          <span id="user-email"></span>
+          <button class="btn btn--ghost btn--sm" id="logout-btn" style="margin-top: 0.7rem; width: 100%">
+            Log out
+          </button>
+        </div>
+      </aside>
+
+      <div class="main">
+        <header class="topbar">
+          <button class="btn btn--ghost menu-toggle" id="menu-toggle" type="button" aria-label="Open menu">
+            Menu
+          </button>
+          <div class="search">
+            <input id="global-search" type="search" placeholder="Search clients, payments, DPO..." />
+          </div>
+          <div class="topbar__actions">
+            <button class="btn btn--ghost btn--sm" id="alerts-btn" type="button" title="Due payments">
+              Alerts <span class="badge hidden" id="alerts-badge">0</span>
+            </button>
+          </div>
+        </header>
+        <main class="content" id="page-root"></main>
+      </div>
+    </div>
+
+    <div id="modal-root"></div>
+    <div id="toast-root"></div>
+    <div id="receipt-print" class="hidden"></div>
+
+    <script src="/admin/js/app.js" defer></script>
+  </body>
+</html>

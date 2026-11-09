@@ -28,6 +28,11 @@ function json(data, status = 200) {
   });
 }
 
+function isAdminHost(hostname) {
+  const host = String(hostname || "").toLowerCase();
+  return host === "admin.omniq.co.zw" || host.startsWith("admin.");
+}
+
 async function handleHealth(env) {
   return json({
     ok: true,
@@ -67,10 +72,7 @@ async function handleContact(request, env) {
   }
 
   if (!isEmail(email)) {
-    return json(
-      { ok: false, error: "Please provide a valid email address." },
-      400
-    );
+    return json({ ok: false, error: "Please provide a valid email address." }, 400);
   }
 
   const subject = `OMNIQ website enquiry from ${name}`;
@@ -134,6 +136,34 @@ async function handleContact(request, env) {
   return json({ ok: true });
 }
 
+async function serveAssets(request, env, pathname) {
+  const url = new URL(request.url);
+  const assetUrl = new URL(pathname, url.origin);
+  return env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+}
+
+async function handleAdminHost(request, env, url) {
+  const path = url.pathname;
+
+  // Shared public assets (logo, favicons)
+  if (path.startsWith("/assets/")) {
+    return env.ASSETS.fetch(request);
+  }
+
+  // Admin app static files
+  if (path.startsWith("/admin/")) {
+    return env.ASSETS.fetch(request);
+  }
+
+  // Convenient aliases on the admin hostname
+  if (path.startsWith("/css/") || path.startsWith("/js/")) {
+    return serveAssets(request, env, `/admin${path}`);
+  }
+
+  // SPA shell for / and client-side admin routes
+  return serveAssets(request, env, "/admin/index.html");
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -148,6 +178,15 @@ export default {
 
     if (url.pathname.startsWith("/api/")) {
       return json({ ok: false, error: "Not found." }, 404);
+    }
+
+    if (isAdminHost(url.hostname)) {
+      return handleAdminHost(request, env, url);
+    }
+
+    // Public site: keep /admin available before the subdomain is attached
+    if (url.pathname === "/admin" || url.pathname === "/admin/") {
+      return serveAssets(request, env, "/admin/index.html");
     }
 
     return env.ASSETS.fetch(request);

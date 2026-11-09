@@ -5,6 +5,7 @@ compatibility_date = "2026-10-30"
 [assets]
 directory = "."
 binding = "ASSETS"
-# Clean paths like /services serve index.html; API still hits the Worker first
+# Worker runs first so admin.omniq.co.zw can be routed to /admin
+# and /api/* stays on the Worker. Public SPA fallback remains enabled.
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*"]
+run_worker_first = true
