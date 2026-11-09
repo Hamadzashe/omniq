@@ -94,6 +94,34 @@ function paymentStatus(row) {
   return "pending";
 }
 
+/** Days from today to a YYYY-MM-DD due date (negative = overdue). */
+function daysUntilDue(dueDate) {
+  if (!dueDate) return null;
+  const today = new Date(`${todayISO()}T12:00:00`);
+  const due = new Date(`${String(dueDate).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(due.getTime())) return null;
+  return Math.round((due - today) / 86400000);
+}
+
+function dueCountdownLabel(dueDate) {
+  const days = daysUntilDue(dueDate);
+  if (days == null) return "";
+  if (days === 0) return "Due today";
+  if (days === 1) return "1 day left";
+  if (days > 1) return `${days} days left`;
+  const overdue = Math.abs(days);
+  if (overdue === 1) return "1 day overdue";
+  return `${overdue} days overdue`;
+}
+
+function dueCountdownPill(dueDate) {
+  const days = daysUntilDue(dueDate);
+  if (days == null) return "";
+  const label = dueCountdownLabel(dueDate);
+  const cls = days < 0 ? "overdue" : days === 0 ? "pending" : "pending-status";
+  return `<span class="pill pill--${cls}">${escapeHtml(label)}</span>`;
+}
+
 function statusPill(status) {
   const map = {
     paid: "paid",
@@ -597,7 +625,10 @@ function renderDashboard() {
                     return `<div class="list-item">
                       <div>
                         <strong>${escapeHtml(p.clients?.organisation || p.clients?.name || "Client")}</strong>
-                        <span>${escapeHtml(p.description)} · due ${fmtDate(p.due_date)}</span>
+                        <span>${escapeHtml(p.description)} · ${fmtDate(p.due_date)}</span>
+                        <div class="stack-card__meta" style="margin-top:0.35rem">${dueCountdownPill(
+                          p.due_date
+                        )}</div>
                       </div>
                       <div class="row-actions">
                         ${statusPill(st)}
@@ -706,13 +737,12 @@ function renderServices() {
       engagements.length
         ? `<div class="stack-list" style="margin-bottom:1.25rem">${engagements
             .map((e) => {
-              const dueSoon = e.status === "active" && e.next_due_date <= todayISO();
               return `<article class="stack-card">
                 <div class="stack-card__main">
                   <strong>${escapeHtml(e.service_name)}</strong>
                   <span>${escapeHtml(e.clients?.organisation || e.clients?.name || "—")}</span>
                   <div class="stack-card__meta">${statusPill(e.status)} ${
-                    dueSoon ? statusPill("overdue") : ""
+                    e.status === "active" ? dueCountdownPill(e.next_due_date) : ""
                   }</div>
                   <span>${escapeHtml(e.billing_cycle)} · Started ${fmtDate(e.start_date)} · Next due ${fmtDate(
                     e.next_due_date
@@ -773,12 +803,11 @@ function renderDpo() {
       rows.length
         ? `<div class="stack-list">${rows
             .map((d) => {
-              const dueSoon = d.status === "active" && d.next_due_date <= todayISO();
               return `<article class="stack-card">
                 <div class="stack-card__main">
                   <strong>${escapeHtml(d.clients?.organisation || d.clients?.name || "—")}</strong>
                   <div class="stack-card__meta">${statusPill(d.status)} ${
-                    dueSoon ? statusPill("overdue") : ""
+                    d.status === "active" ? dueCountdownPill(d.next_due_date) : ""
                   }</div>
                   <span>Started ${fmtDate(d.start_date)} · Next due ${fmtDate(d.next_due_date)}</span>
                   <span>${escapeHtml(TIER_LABELS[d.si155_tier] || d.si155_tier)}</span>
@@ -827,7 +856,12 @@ function renderBilling() {
                 <div class="stack-card__main">
                   <strong>${escapeHtml(p.clients?.organisation || p.clients?.name || "—")}</strong>
                   <span>${escapeHtml(p.description)}</span>
-                  <span>Due ${fmtDate(p.due_date)} · ${statusPill(st)}</span>
+                  <span>Due ${fmtDate(p.due_date)}</span>
+                  <div class="stack-card__meta">${statusPill(st)}${
+                    st === "paid" || st === "cancelled"
+                      ? ""
+                      : ` ${dueCountdownPill(p.due_date)}`
+                  }</div>
                   <span class="stack-card__amount">${money(p.amount, p.currency)}</span>
                 </div>
                 <div class="row-actions">
