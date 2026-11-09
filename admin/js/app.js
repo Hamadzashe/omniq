@@ -136,12 +136,11 @@ function showLogin(message = "") {
   status.classList.toggle("is-ok", false);
 }
 
-function refreshIcons(root = document) {
+function refreshIcons() {
   if (window.lucide?.createIcons) {
     window.lucide.createIcons({
       attrs: { "stroke-width": 2 },
       nameAttr: "data-lucide",
-      root,
     });
   }
 }
@@ -185,7 +184,7 @@ function openModal(title, bodyHtml, onSubmit) {
       </form>
     </div>
   `;
-  refreshIcons(root);
+  refreshIcons();
   root.querySelectorAll("[data-close]").forEach((el) => {
     el.addEventListener("click", (e) => {
       if (e.target.hasAttribute("data-close") || e.target.closest("[data-close]") === el) {
