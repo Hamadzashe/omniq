@@ -419,17 +419,20 @@ async function createReceiptForPayment(paymentId) {
   toast(`Receipt ${receiptNumber} created. Added to Finance → Income.`);
 }
 
-function renderReceipt(receiptId) {
-  const receipt = state.cache.receipts.find((r) => r.id === receiptId);
-  if (!receipt) return;
-  const client = state.cache.clients.find((c) => c.id === receipt.client_id);
+function buildReceiptHtml(receipt, client, { forPrint = false } = {}) {
   const lines = Array.isArray(receipt.line_items) ? receipt.line_items : [];
-  const html = `
+  const logoSrc = cfg.company.logoReceiptUrl || cfg.company.logoUrl;
+  const actions = forPrint
+    ? ""
+    : `<div class="row-actions no-print" style="margin-top:1rem">
+        <button class="btn btn--primary" type="button" data-print-receipt>Print / Save PDF</button>
+      </div>`;
+  return `
     <div class="receipt-sheet">
       <div class="receipt-sheet__head">
         <div>
           <div class="receipt-logo">
-            <img src="${cfg.company.logoUrl}" alt="OMNIQ" />
+            <img src="${logoSrc}" alt="OMNIQ Integrated Systems" width="200" height="120" />
           </div>
           <p><strong>${escapeHtml(cfg.company.name)}</strong></p>
           <p>${escapeHtml(cfg.company.email)} · ${escapeHtml(cfg.company.phone)}</p>
@@ -465,34 +468,43 @@ function renderReceipt(receiptId) {
         receipt.currency
       )}</strong></p>
       <p style="color:#6b7385">Thank you for your payment.</p>
-      <div class="row-actions" style="margin-top:1rem">
-        <button class="btn btn--primary" type="button" onclick="window.print()">Print / Save PDF</button>
-      </div>
+      ${actions}
     </div>
   `;
-  // Keep a print-only copy off-screen; never show it in the page body
+}
+
+function renderReceipt(receiptId) {
+  const receipt = state.cache.receipts.find((r) => r.id === receiptId);
+  if (!receipt) return;
+  const client = state.cache.clients.find((c) => c.id === receipt.client_id);
+  const modalHtml = buildReceiptHtml(receipt, client, { forPrint: false });
+  const printHtml = buildReceiptHtml(receipt, client, { forPrint: true });
+
   const printHost = $("#receipt-print");
   if (printHost) {
-    printHost.innerHTML = html;
+    printHost.innerHTML = printHtml;
     printHost.setAttribute("aria-hidden", "true");
   }
 
   openModal(
     "Receipt",
-    `<div class="receipt-modal-body">${html}</div>
-     <p class="lede-mini">Use Print to save or share a PDF. This stays in the dialog only.</p>`,
+    `<div class="receipt-modal-body">${modalHtml}</div>
+     <p class="lede-mini no-print">Use Print to save or share a PDF.</p>`,
     async () => {}
   );
   const actions = $(".modal__actions");
   if (actions) {
     actions.innerHTML = `
-      <button type="button" class="btn btn--ghost" id="modal-close-receipt">Close</button>
-      <button type="button" class="btn btn--primary" id="modal-print-receipt">Print / Save PDF</button>
+      <button type="button" class="btn btn--ghost no-print" id="modal-close-receipt">Close</button>
+      <button type="button" class="btn btn--primary no-print" id="modal-print-receipt">Print / Save PDF</button>
     `;
     $("#modal-close-receipt")?.addEventListener("click", closeModal);
     $("#modal-print-receipt")?.addEventListener("click", () => window.print());
     $("#modal-form button[type='submit']")?.remove();
   }
+  $$("[data-print-receipt]").forEach((btn) => {
+    btn.addEventListener("click", () => window.print());
+  });
 }
 
 function clientOptions(selected = "") {

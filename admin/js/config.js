@@ -12,5 +12,7 @@ window.OMNIQ_ADMIN = {
     country: "Zimbabwe",
     logoUrl: "/admin/assets/omniq-logo-clear.png",
     logoMarkUrl: "/admin/assets/omniq-mark.png",
+    // Baked dark background so print/PDF keeps the logo visible on white paper
+    logoReceiptUrl: "/admin/assets/omniq-logo-receipt.png",
   },
 };
