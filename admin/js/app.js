@@ -17,6 +17,7 @@ const state = {
   route: "dashboard",
   search: "",
   cache: {},
+  financePeriod: sessionStorage.getItem("omniq_finance_period") || "this_month",
 };
 
 const TIER_LABELS = {
@@ -881,25 +882,218 @@ function renderBilling() {
   `;
 }
 
+const FINANCE_PERIODS = [
+  { id: "this_month", label: "This month" },
+  { id: "last_month", label: "Last month" },
+  { id: "this_quarter", label: "This quarter" },
+  { id: "last_quarter", label: "Last quarter" },
+  { id: "this_year", label: "This year" },
+  { id: "last_year", label: "Last year" },
+  { id: "all_time", label: "All time" },
+];
+
+function monthLabel(year, monthIndex) {
+  return new Date(year, monthIndex, 1).toLocaleDateString("en-GB", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function financeRange(period = state.financePeriod) {
+  const now = new Date(`${todayISO()}T12:00:00`);
+  const y = now.getFullYear();
+  const m = now.getMonth(); // 0-11
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const startOfMonth = (yy, mm) => new Date(yy, mm, 1, 12);
+  const endOfMonth = (yy, mm) => new Date(yy, mm + 1, 0, 12);
+
+  switch (period) {
+    case "last_month": {
+      const d = startOfMonth(y, m - 1);
+      const e = endOfMonth(y, m - 1);
+      return {
+        start: iso(d),
+        end: iso(e),
+        label: monthLabel(d.getFullYear(), d.getMonth()),
+      };
+    }
+    case "this_quarter": {
+      const q = Math.floor(m / 3) * 3;
+      return {
+        start: iso(startOfMonth(y, q)),
+        end: iso(endOfMonth(y, q + 2)),
+        label: `Q${Math.floor(m / 3) + 1} ${y}`,
+      };
+    }
+    case "last_quarter": {
+      const q = Math.floor(m / 3) * 3 - 3;
+      const d = startOfMonth(y, q);
+      const e = endOfMonth(y, q + 2);
+      return {
+        start: iso(d),
+        end: iso(e),
+        label: `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`,
+      };
+    }
+    case "this_year":
+      return { start: `${y}-01-01`, end: `${y}-12-31`, label: String(y) };
+    case "last_year":
+      return {
+        start: `${y - 1}-01-01`,
+        end: `${y - 1}-12-31`,
+        label: String(y - 1),
+      };
+    case "all_time":
+      return { start: null, end: null, label: "All time" };
+    case "this_month":
+    default:
+      return {
+        start: iso(startOfMonth(y, m)),
+        end: iso(endOfMonth(y, m)),
+        label: monthLabel(y, m),
+      };
+  }
+}
+
+function inFinanceRange(dateStr, range = financeRange()) {
+  if (!dateStr) return false;
+  const d = String(dateStr).slice(0, 10);
+  if (!range.start && !range.end) return true;
+  if (range.start && d < range.start) return false;
+  if (range.end && d > range.end) return false;
+  return true;
+}
+
+function getFilteredFinance() {
+  const range = financeRange();
+  const expenses = (state.cache.expenses || []).filter(
+    (e) =>
+      inFinanceRange(e.expense_date, range) &&
+      matchesSearch(`${e.title} ${e.category}`)
+  );
+  const income = (state.cache.revenue || []).filter(
+    (r) =>
+      inFinanceRange(r.entry_date, range) && matchesSearch(`${r.title}`)
+  );
+  const capital = (state.cache.capital || []).filter(
+    (c) =>
+      inFinanceRange(c.contribution_date, range) &&
+      matchesSearch(`${c.contributor_name} ${c.notes || ""}`)
+  );
+  return {
+    range,
+    expenses,
+    income,
+    capital,
+    incomeTotal: income.reduce((s, r) => s + Number(r.amount || 0), 0),
+    expenseTotal: expenses.reduce((s, r) => s + Number(r.amount || 0), 0),
+    capitalTotal: capital.reduce((s, r) => s + Number(r.amount || 0), 0),
+  };
+}
+
+function csvEscape(value) {
+  const s = String(value ?? "");
+  if (/[",\n]/.test(s)) return `"${s.replaceAll('"', '""')}"`;
+  return s;
+}
+
+function exportFinanceCsv() {
+  const data = getFilteredFinance();
+  const rows = [
+    ["Type", "Date", "Title", "Category / Source", "Amount", "Currency", "Notes"],
+  ];
+
+  data.income.forEach((r) => {
+    rows.push([
+      "Income",
+      r.entry_date,
+      r.title,
+      r.source === "client_payment" ? "Client payment" : "Manual",
+      Number(r.amount || 0).toFixed(2),
+      r.currency || "USD",
+      r.notes || "",
+    ]);
+  });
+  data.capital.forEach((c) => {
+    rows.push([
+      "Capital",
+      c.contribution_date,
+      c.contributor_name,
+      "Capital introduced",
+      Number(c.amount || 0).toFixed(2),
+      c.currency || "USD",
+      c.notes || "",
+    ]);
+  });
+  data.expenses.forEach((e) => {
+    rows.push([
+      "Expense",
+      e.expense_date,
+      e.title,
+      e.category || "",
+      Number(e.amount || 0).toFixed(2),
+      e.currency || "USD",
+      e.notes || "",
+    ]);
+  });
+
+  rows.push([]);
+  rows.push(["Summary", "", "", "", "", "", ""]);
+  rows.push(["Income total", "", "", "", data.incomeTotal.toFixed(2), "USD", ""]);
+  rows.push(["Capital total", "", "", "", data.capitalTotal.toFixed(2), "USD", ""]);
+  rows.push(["Expense total", "", "", "", data.expenseTotal.toFixed(2), "USD", ""]);
+  rows.push([
+    "Operating result",
+    "",
+    "",
+    "",
+    (data.incomeTotal - data.expenseTotal).toFixed(2),
+    "USD",
+    "",
+  ]);
+  rows.push(["Period", data.range.label, data.range.start || "", data.range.end || "", "", "", ""]);
+
+  const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  const stamp = todayISO();
+  const periodSlug = String(state.financePeriod || "period").replaceAll("_", "-");
+  a.href = URL.createObjectURL(blob);
+  a.download = `omniq-finance-${periodSlug}-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+  toast("Finance export downloaded.");
+}
+
 function renderFinance() {
-  const expenses = state.cache.expenses.filter((e) =>
-    matchesSearch(`${e.title} ${e.category}`)
-  );
-  const income = state.cache.revenue.filter((r) =>
-    matchesSearch(`${r.title}`)
-  );
-  const capital = (state.cache.capital || []).filter((c) =>
-    matchesSearch(`${c.contributor_name} ${c.notes || ""}`)
-  );
-  const incomeTotal = income.reduce((s, r) => s + Number(r.amount || 0), 0);
-  const expenseTotal = expenses.reduce((s, r) => s + Number(r.amount || 0), 0);
-  const capitalTotal = capital.reduce((s, r) => s + Number(r.amount || 0), 0);
+  // Keep "This month" aligned to the calendar automatically each new month
+  const calendarMonth = todayISO().slice(0, 7);
+  const storedMonth = sessionStorage.getItem("omniq_finance_calendar_month");
+  if (storedMonth && storedMonth !== calendarMonth) {
+    state.financePeriod = "this_month";
+    sessionStorage.setItem("omniq_finance_period", "this_month");
+  }
+  sessionStorage.setItem("omniq_finance_calendar_month", calendarMonth);
+
+  const data = getFilteredFinance();
+  const periodOptions = FINANCE_PERIODS.map(
+    (p) =>
+      `<option value="${p.id}" ${
+        state.financePeriod === p.id ? "selected" : ""
+      }>${escapeHtml(p.label)}</option>`
+  ).join("");
 
   return `
     <div class="page-head">
       <div>
         <h1>Finance</h1>
-        <p>Income, capital contributions, and expenses.</p>
+        <p>${escapeHtml(data.range.label)}${
+          data.range.start
+            ? ` · ${fmtDate(data.range.start)} – ${fmtDate(data.range.end)}`
+            : ""
+        }</p>
       </div>
       <div class="row-actions page-head__actions">
         <button class="btn btn--ghost" type="button" data-action="expense-new">Add expense</button>
@@ -908,22 +1102,30 @@ function renderFinance() {
       </div>
     </div>
 
+    <div class="finance-toolbar card">
+      <div class="field finance-toolbar__period">
+        <label for="finance-period">Period</label>
+        <select id="finance-period" name="finance_period">${periodOptions}</select>
+      </div>
+      <button class="btn btn--ghost" type="button" data-action="finance-export">Export CSV</button>
+    </div>
+
     <div class="grid grid--stats" style="margin-bottom:1rem">
       <div class="card stat stat--ok">
         <div class="stat__label">Income</div>
-        <div class="stat__value">${money(incomeTotal)}</div>
+        <div class="stat__value">${money(data.incomeTotal)}</div>
       </div>
       <div class="card stat stat--accent">
         <div class="stat__label">Capital introduced</div>
-        <div class="stat__value">${money(capitalTotal)}</div>
+        <div class="stat__value">${money(data.capitalTotal)}</div>
       </div>
       <div class="card stat stat--warn">
         <div class="stat__label">Expenses</div>
-        <div class="stat__value">${money(expenseTotal)}</div>
+        <div class="stat__value">${money(data.expenseTotal)}</div>
       </div>
       <div class="card stat">
         <div class="stat__label">Operating result</div>
-        <div class="stat__value">${money(incomeTotal - expenseTotal)}</div>
+        <div class="stat__value">${money(data.incomeTotal - data.expenseTotal)}</div>
       </div>
     </div>
 
@@ -931,8 +1133,8 @@ function renderFinance() {
       <section>
         <h3 class="section-label">Income</h3>
         ${
-          income.length
-            ? `<div class="stack-list">${income
+          data.income.length
+            ? `<div class="stack-list">${data.income
                 .map(
                   (r) => `<article class="stack-card">
                     <div class="stack-card__main">
@@ -945,14 +1147,14 @@ function renderFinance() {
                   </article>`
                 )
                 .join("")}</div>`
-            : emptyCard("No income recorded.")
+            : emptyCard("No income in this period.")
         }
       </section>
       <section>
         <h3 class="section-label">Capital introduced</h3>
         ${
-          capital.length
-            ? `<div class="stack-list">${capital
+          data.capital.length
+            ? `<div class="stack-list">${data.capital
                 .map(
                   (c) => `<article class="stack-card">
                     <div class="stack-card__main">
@@ -965,14 +1167,14 @@ function renderFinance() {
                   </article>`
                 )
                 .join("")}</div>`
-            : emptyCard("No capital contributions recorded.")
+            : emptyCard("No capital contributions in this period.")
         }
       </section>
       <section class="finance-expenses">
         <h3 class="section-label">Expenses</h3>
         ${
-          expenses.length
-            ? `<div class="stack-list">${expenses
+          data.expenses.length
+            ? `<div class="stack-list">${data.expenses
                 .map(
                   (e) => `<article class="stack-card">
                     <div class="stack-card__main">
@@ -983,7 +1185,7 @@ function renderFinance() {
                   </article>`
                 )
                 .join("")}</div>`
-            : emptyCard("No expenses recorded.")
+            : emptyCard("No expenses in this period.")
         }
       </section>
     </div>
@@ -1537,6 +1739,13 @@ function bindUi() {
     render();
   });
 
+  $("#page-root").addEventListener("change", (e) => {
+    if (e.target?.id !== "finance-period") return;
+    state.financePeriod = e.target.value || "this_month";
+    sessionStorage.setItem("omniq_finance_period", state.financePeriod);
+    render();
+  });
+
   $("#page-root").addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-action]");
     if (!btn) return;
@@ -1594,6 +1803,10 @@ function bindUi() {
     if (action === "expense-new") return runAction(() => expenseForm());
     if (action === "revenue-new") return runAction(() => revenueForm());
     if (action === "capital-new") return runAction(() => capitalForm());
+    if (action === "finance-export") {
+      exportFinanceCsv();
+      return;
+    }
   });
 }
 
