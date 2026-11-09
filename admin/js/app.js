@@ -233,36 +233,55 @@ function runAction(fn) {
 }
 
 async function loadAll() {
-  const [clients, services, dpo, payments, expenses, revenue, receipts] =
-    await Promise.all([
-      sb.from("clients").select("*").order("name"),
-      sb.from("services").select("*").order("sort_order"),
-      sb
-        .from("dpo_engagements")
-        .select("*, clients(name, organisation, email, phone)")
-        .order("next_due_date"),
-      sb
-        .from("payments")
-        .select("*, clients(name, organisation), services(name)")
-        .order("due_date", { ascending: true }),
-      sb.from("expenses").select("*").order("expense_date", { ascending: false }),
-      sb
-        .from("revenue_entries")
-        .select("*")
-        .order("entry_date", { ascending: false }),
-      sb
-        .from("receipts")
-        .select("*, clients(name, organisation)")
-        .order("issued_at", { ascending: false }),
-    ]);
+  const [
+    clients,
+    services,
+    dpo,
+    engagements,
+    payments,
+    expenses,
+    revenue,
+    capital,
+    receipts,
+  ] = await Promise.all([
+    sb.from("clients").select("*").order("name"),
+    sb.from("services").select("*").order("sort_order"),
+    sb
+      .from("dpo_engagements")
+      .select("*, clients(name, organisation, email, phone)")
+      .order("next_due_date"),
+    sb
+      .from("service_engagements")
+      .select("*, clients(name, organisation, email, phone), services(name)")
+      .order("next_due_date"),
+    sb
+      .from("payments")
+      .select("*, clients(name, organisation), services(name)")
+      .order("due_date", { ascending: true }),
+    sb.from("expenses").select("*").order("expense_date", { ascending: false }),
+    sb
+      .from("revenue_entries")
+      .select("*")
+      .order("entry_date", { ascending: false }),
+    sb
+      .from("capital_contributions")
+      .select("*")
+      .order("contribution_date", { ascending: false }),
+    sb
+      .from("receipts")
+      .select("*, clients(name, organisation)")
+      .order("issued_at", { ascending: false }),
+  ]);
 
   const firstError = [
     clients.error,
     services.error,
     dpo.error,
+    engagements.error,
     payments.error,
     expenses.error,
     revenue.error,
+    capital.error,
     receipts.error,
   ].find(Boolean);
 
@@ -272,9 +291,11 @@ async function loadAll() {
     clients: clients.data || [],
     services: services.data || [],
     dpo: dpo.data || [],
+    engagements: engagements.data || [],
     payments: payments.data || [],
     expenses: expenses.data || [],
     revenue: revenue.data || [],
+    capital: capital.data || [],
     receipts: receipts.data || [],
   };
 }
@@ -355,15 +376,21 @@ async function createReceiptForPayment(paymentId) {
     .eq("id", payment.id);
   if (payErr) throw payErr;
 
-  await sb.from("revenue_entries").insert({
-    title: payment.description,
-    amount: payment.amount,
-    currency: payment.currency,
-    entry_date: todayISO(),
-    client_id: payment.client_id,
-    payment_id: payment.id,
-    created_by: state.session.user.id,
-  });
+  const existingRevenue = (state.cache.revenue || []).find(
+    (r) => r.payment_id === payment.id
+  );
+  if (!existingRevenue) {
+    await sb.from("revenue_entries").insert({
+      title: payment.description,
+      amount: payment.amount,
+      currency: payment.currency,
+      entry_date: todayISO(),
+      client_id: payment.client_id,
+      payment_id: payment.id,
+      source: "client_payment",
+      created_by: state.session.user.id,
+    });
+  }
 
   if (payment.dpo_engagement_id) {
     const eng = state.cache.dpo.find((d) => d.id === payment.dpo_engagement_id);
@@ -375,9 +402,21 @@ async function createReceiptForPayment(paymentId) {
     }
   }
 
+  if (payment.service_engagement_id) {
+    const eng = state.cache.engagements.find(
+      (d) => d.id === payment.service_engagement_id
+    );
+    if (eng && eng.billing_cycle === "monthly") {
+      await sb
+        .from("service_engagements")
+        .update({ next_due_date: addMonths(eng.next_due_date || todayISO(), 1) })
+        .eq("id", eng.id);
+    }
+  }
+
   await refresh();
   renderReceipt(receipt.id);
-  toast(`Receipt ${receiptNumber} created.`);
+  toast(`Receipt ${receiptNumber} created. Added to Finance → Income.`);
 }
 
 function renderReceipt(receiptId) {
@@ -389,7 +428,9 @@ function renderReceipt(receiptId) {
     <div class="receipt-sheet">
       <div class="receipt-sheet__head">
         <div>
-          <img src="${cfg.company.logoUrl}" alt="OMNIQ" />
+          <div class="receipt-logo">
+            <img src="${cfg.company.logoUrl}" alt="OMNIQ" />
+          </div>
           <p><strong>${escapeHtml(cfg.company.name)}</strong></p>
           <p>${escapeHtml(cfg.company.email)} · ${escapeHtml(cfg.company.phone)}</p>
           <p>${escapeHtml(cfg.company.country)}</p>
@@ -602,20 +643,74 @@ function renderClients() {
   `;
 }
 
+function nonDpoServiceOptions(selected = "") {
+  return state.cache.services
+    .filter((s) => s.is_active && !/dpo/i.test(s.name))
+    .map(
+      (s) =>
+        `<option value="${s.id}" ${s.id === selected ? "selected" : ""}>${escapeHtml(
+          s.name
+        )}</option>`
+    )
+    .join("");
+}
+
 function renderServices() {
-  const rows = state.cache.services.filter((s) =>
+  const catalogue = state.cache.services.filter((s) =>
     matchesSearch(`${s.name} ${s.description}`)
+  );
+  const engagements = (state.cache.engagements || []).filter((e) =>
+    matchesSearch(
+      `${e.service_name} ${e.clients?.name} ${e.clients?.organisation}`
+    )
   );
   return `
     <div class="page-head">
       <div>
         <h1>Services</h1>
-        <p>Catalogue from the public site, plus custom services you add.</p>
+        <p>Assign services to clients (like DPO), create payment dues, and mark paid to post income.</p>
       </div>
-      <button class="btn btn--primary" type="button" data-action="service-new">Add custom service</button>
+      <div class="row-actions page-head__actions">
+        <button class="btn btn--ghost" type="button" data-action="service-new">Add catalogue item</button>
+        <button class="btn btn--primary" type="button" data-action="engagement-new">Assign to client</button>
+      </div>
     </div>
+
+    <h3 class="section-label">Client service records</h3>
+    ${
+      engagements.length
+        ? `<div class="stack-list" style="margin-bottom:1.25rem">${engagements
+            .map((e) => {
+              const dueSoon = e.status === "active" && e.next_due_date <= todayISO();
+              return `<article class="stack-card">
+                <div class="stack-card__main">
+                  <strong>${escapeHtml(e.service_name)}</strong>
+                  <span>${escapeHtml(e.clients?.organisation || e.clients?.name || "—")}</span>
+                  <div class="stack-card__meta">${statusPill(e.status)} ${
+                    dueSoon ? statusPill("overdue") : ""
+                  }</div>
+                  <span>${escapeHtml(e.billing_cycle)} · Started ${fmtDate(e.start_date)} · Next due ${fmtDate(
+                    e.next_due_date
+                  )}</span>
+                  <span class="stack-card__amount">${money(e.fee, e.currency)}${
+                    e.billing_cycle === "monthly" ? " / month" : ""
+                  }</span>
+                </div>
+                <div class="row-actions">
+                  <button class="btn btn--ghost btn--sm" type="button" data-action="engagement-edit" data-id="${e.id}">Edit</button>
+                  <button class="btn btn--primary btn--sm" type="button" data-action="engagement-bill" data-id="${e.id}">Create due</button>
+                </div>
+              </article>`;
+            })
+            .join("")}</div>`
+        : `<div style="margin-bottom:1.25rem">${emptyCard(
+            "No client service records yet. Assign a service to a client to track fees like DPO."
+          )}</div>`
+    }
+
+    <h3 class="section-label">Service catalogue</h3>
     <div class="stack-list">
-      ${rows
+      ${catalogue
         .map(
           (s) => `<article class="stack-card">
             <div class="stack-card__main">
@@ -645,7 +740,7 @@ function renderDpo() {
     <div class="page-head">
       <div>
         <h1>DPO engagements</h1>
-        <p>Monthly retainers, SI 155 tiers, controller licensing, and POTRAZ DPO notification.</p>
+        <p>Monthly retainers, SI 155 tiers, controller licensing, and POTRAZ notice. Create due → mark paid → Income + receipt.</p>
       </div>
       <button class="btn btn--primary" type="button" data-action="dpo-new">Add DPO client</button>
     </div>
@@ -731,22 +826,100 @@ function renderFinance() {
   const expenses = state.cache.expenses.filter((e) =>
     matchesSearch(`${e.title} ${e.category}`)
   );
-  const revenue = state.cache.revenue.filter((r) =>
+  const income = state.cache.revenue.filter((r) =>
     matchesSearch(`${r.title}`)
   );
+  const capital = (state.cache.capital || []).filter((c) =>
+    matchesSearch(`${c.contributor_name} ${c.notes || ""}`)
+  );
+  const incomeTotal = income.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const expenseTotal = expenses.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const capitalTotal = capital.reduce((s, r) => s + Number(r.amount || 0), 0);
+
   return `
     <div class="page-head">
       <div>
         <h1>Finance</h1>
-        <p>Expenses and revenue for a clear income picture.</p>
+        <p>Income from client payments, director capital introduced, and expenses. Capital is not operating revenue.</p>
       </div>
       <div class="row-actions page-head__actions">
         <button class="btn btn--ghost" type="button" data-action="expense-new">Add expense</button>
-        <button class="btn btn--primary" type="button" data-action="revenue-new">Add revenue</button>
+        <button class="btn btn--ghost" type="button" data-action="capital-new">Add capital</button>
+        <button class="btn btn--primary" type="button" data-action="revenue-new">Add income</button>
       </div>
     </div>
+
+    <div class="grid grid--stats" style="margin-bottom:1rem">
+      <div class="card stat stat--ok">
+        <div class="stat__label">Income (client / ops)</div>
+        <div class="stat__value">${money(incomeTotal)}</div>
+      </div>
+      <div class="card stat stat--accent">
+        <div class="stat__label">Capital introduced</div>
+        <div class="stat__value">${money(capitalTotal)}</div>
+        <div class="stat__meta">Director / owner funds</div>
+      </div>
+      <div class="card stat stat--warn">
+        <div class="stat__label">Expenses</div>
+        <div class="stat__value">${money(expenseTotal)}</div>
+      </div>
+      <div class="card stat">
+        <div class="stat__label">Operating result</div>
+        <div class="stat__value">${money(incomeTotal - expenseTotal)}</div>
+        <div class="stat__meta">Income minus expenses</div>
+      </div>
+    </div>
+
+    <div class="finance-note card" style="margin-bottom:1rem">
+      <strong>Director start-up funds:</strong>
+      record them under <em>Capital introduced</em>, not Income.
+      That keeps company money in the books without treating it as sales profit.
+    </div>
+
     <div class="grid grid--2">
       <section>
+        <h3 class="section-label">Income</h3>
+        <p class="lede-mini">From DPO / service payments marked paid (auto) or manual income.</p>
+        ${
+          income.length
+            ? `<div class="stack-list">${income
+                .map(
+                  (r) => `<article class="stack-card">
+                    <div class="stack-card__main">
+                      <strong>${escapeHtml(r.title)}</strong>
+                      <span>${fmtDate(r.entry_date)}${
+                        r.source === "client_payment" ? " · From client payment" : " · Manual"
+                      }</span>
+                      <span class="stack-card__amount">${money(r.amount, r.currency)}</span>
+                    </div>
+                  </article>`
+                )
+                .join("")}</div>`
+            : emptyCard("No income yet. Mark a billing payment as paid, or add income manually.")
+        }
+      </section>
+      <section>
+        <h3 class="section-label">Capital introduced</h3>
+        <p class="lede-mini">Money directors put in to start or fund operations.</p>
+        ${
+          capital.length
+            ? `<div class="stack-list">${capital
+                .map(
+                  (c) => `<article class="stack-card">
+                    <div class="stack-card__main">
+                      <strong>${escapeHtml(c.contributor_name)}</strong>
+                      <span>${fmtDate(c.contribution_date)}${
+                        c.notes ? ` · ${escapeHtml(c.notes)}` : ""
+                      }</span>
+                      <span class="stack-card__amount">${money(c.amount, c.currency)}</span>
+                    </div>
+                  </article>`
+                )
+                .join("")}</div>`
+            : emptyCard("No capital contributions yet.")
+        }
+      </section>
+      <section class="finance-expenses">
         <h3 class="section-label">Expenses</h3>
         ${
           expenses.length
@@ -762,24 +935,6 @@ function renderFinance() {
                 )
                 .join("")}</div>`
             : emptyCard("No expenses logged.")
-        }
-      </section>
-      <section>
-        <h3 class="section-label">Revenue</h3>
-        ${
-          revenue.length
-            ? `<div class="stack-list">${revenue
-                .map(
-                  (r) => `<article class="stack-card">
-                    <div class="stack-card__main">
-                      <strong>${escapeHtml(r.title)}</strong>
-                      <span>${fmtDate(r.entry_date)}</span>
-                      <span class="stack-card__amount">${money(r.amount, r.currency)}</span>
-                    </div>
-                  </article>`
-                )
-                .join("")}</div>`
-            : emptyCard("No revenue entries yet.")
         }
       </section>
     </div>
@@ -1099,7 +1254,137 @@ async function createDpoDue(engagementId) {
   await refresh();
   state.route = "billing";
   render();
-  toast("DPO payment due created.");
+  toast("DPO payment due created. When marked paid, it posts to Finance → Income.");
+}
+
+function engagementForm(existing = null) {
+  if (!state.cache.clients.length) {
+    toast("Add a client first.");
+    return;
+  }
+  openModal(
+    existing ? "Edit client service" : "Assign service to client",
+    `
+      <div class="field"><label>Client</label><select name="client_id" required>${clientOptions(
+        existing?.client_id || ""
+      )}</select></div>
+      <div class="field"><label>Service</label><select name="service_id" required>
+        <option value="">Select service</option>
+        ${nonDpoServiceOptions(existing?.service_id || "")}
+      </select></div>
+      <div class="field"><label>Custom name (optional)</label><input name="service_name" value="${escapeHtml(
+        existing?.service_name || ""
+      )}" placeholder="Leave blank to use catalogue name" /></div>
+      <div class="field"><label>Start date</label><input name="start_date" type="date" required value="${
+        existing?.start_date || todayISO()
+      }" /></div>
+      <div class="field"><label>Fee</label><input name="fee" type="number" step="0.01" required value="${
+        existing?.fee ?? ""
+      }" /></div>
+      <div class="field"><label>Billing cycle</label>
+        <select name="billing_cycle">
+          <option value="one_off" ${
+            existing?.billing_cycle !== "monthly" ? "selected" : ""
+          }>One-off</option>
+          <option value="monthly" ${
+            existing?.billing_cycle === "monthly" ? "selected" : ""
+          }>Monthly</option>
+        </select>
+      </div>
+      <div class="field"><label>Next due date</label><input name="next_due_date" type="date" required value="${
+        existing?.next_due_date || todayISO()
+      }" /></div>
+      <div class="field"><label>Status</label>
+        <select name="status">
+          <option value="active">Active</option>
+          <option value="paused" ${existing?.status === "paused" ? "selected" : ""}>Paused</option>
+          <option value="ended" ${existing?.status === "ended" ? "selected" : ""}>Ended</option>
+        </select>
+      </div>
+      <div class="field"><label>Notes</label><textarea name="notes">${escapeHtml(
+        existing?.notes || ""
+      )}</textarea></div>
+    `,
+    async (values) => {
+      const service = state.cache.services.find((s) => s.id === values.service_id);
+      const payload = {
+        client_id: values.client_id,
+        service_id: values.service_id || null,
+        service_name:
+          values.service_name?.trim() || service?.name || "Service",
+        start_date: values.start_date,
+        fee: Number(values.fee),
+        billing_cycle: values.billing_cycle,
+        next_due_date: values.next_due_date,
+        status: values.status,
+        notes: values.notes || null,
+      };
+      if (existing) {
+        const { error } = await sb
+          .from("service_engagements")
+          .update(payload)
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from("service_engagements").insert(payload);
+        if (error) throw error;
+      }
+      await refresh();
+      toast("Client service saved.");
+    }
+  );
+}
+
+async function createServiceDue(engagementId) {
+  const eng = state.cache.engagements.find((d) => d.id === engagementId);
+  if (!eng) return;
+  const label =
+    eng.billing_cycle === "monthly" ? "monthly fee" : "service fee";
+  const { error } = await sb.from("payments").insert({
+    client_id: eng.client_id,
+    service_engagement_id: eng.id,
+    service_id: eng.service_id || null,
+    description: `${eng.service_name} ${label} — ${
+      eng.clients?.organisation || eng.clients?.name || "client"
+    }`,
+    amount: eng.fee,
+    currency: eng.currency,
+    due_date: eng.next_due_date || todayISO(),
+    status: "pending",
+  });
+  if (error) {
+    toast(error.message);
+    return;
+  }
+  await refresh();
+  state.route = "billing";
+  render();
+  toast("Payment due created. Mark paid to add Income + receipt.");
+}
+
+function capitalForm() {
+  openModal(
+    "Add capital introduced",
+    `
+      <p class="lede-mini" style="margin-top:0">Director / owner funds for operations — not sales income.</p>
+      <div class="field"><label>Contributor</label><input name="contributor_name" required placeholder="e.g. Directors / Hamadzashe" value="Directors" /></div>
+      <div class="field"><label>Amount</label><input name="amount" type="number" step="0.01" required /></div>
+      <div class="field"><label>Date</label><input name="contribution_date" type="date" required value="${todayISO()}" /></div>
+      <div class="field"><label>Notes</label><textarea name="notes" placeholder="e.g. Start-up working capital"></textarea></div>
+    `,
+    async (values) => {
+      const { error } = await sb.from("capital_contributions").insert({
+        contributor_name: values.contributor_name,
+        amount: Number(values.amount),
+        contribution_date: values.contribution_date,
+        notes: values.notes || null,
+        created_by: state.session.user.id,
+      });
+      if (error) throw error;
+      await refresh();
+      toast("Capital contribution recorded.");
+    }
+  );
 }
 
 function expenseForm() {
@@ -1130,9 +1415,10 @@ function expenseForm() {
 
 function revenueForm() {
   openModal(
-    "Add revenue",
+    "Add income",
     `
-      <div class="field"><label>Title</label><input name="title" required /></div>
+      <p class="lede-mini" style="margin-top:0">Operating income only. Director funds belong under Capital introduced.</p>
+      <div class="field"><label>Title</label><input name="title" required placeholder="e.g. Consulting fee" /></div>
       <div class="field"><label>Amount</label><input name="amount" type="number" step="0.01" required /></div>
       <div class="field"><label>Date</label><input name="entry_date" type="date" required value="${todayISO()}" /></div>
       <div class="field"><label>Client (optional)</label><select name="client_id"><option value="">—</option>${clientOptions()}</select></div>
@@ -1145,11 +1431,12 @@ function revenueForm() {
         entry_date: values.entry_date,
         client_id: values.client_id || null,
         notes: values.notes || null,
+        source: "manual",
         created_by: state.session.user.id,
       });
       if (error) throw error;
       await refresh();
-      toast("Revenue saved.");
+      toast("Income saved.");
     }
   );
 }
@@ -1229,6 +1516,16 @@ function bindUi() {
         serviceForm(state.cache.services.find((s) => s.id === id))
       );
     }
+    if (action === "engagement-new") {
+      if (!state.cache.clients.length) return toast("Add a client first.");
+      return runAction(() => engagementForm());
+    }
+    if (action === "engagement-edit") {
+      return runAction(() =>
+        engagementForm(state.cache.engagements.find((d) => d.id === id))
+      );
+    }
+    if (action === "engagement-bill") return createServiceDue(id);
     if (action === "dpo-new") {
       if (!state.cache.clients.length) return toast("Add a client first.");
       return runAction(() => dpoForm());
@@ -1249,6 +1546,7 @@ function bindUi() {
     if (action === "receipt-view") return runAction(() => renderReceipt(id));
     if (action === "expense-new") return runAction(() => expenseForm());
     if (action === "revenue-new") return runAction(() => revenueForm());
+    if (action === "capital-new") return runAction(() => capitalForm());
   });
 }
 

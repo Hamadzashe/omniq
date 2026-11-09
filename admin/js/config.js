@@ -11,5 +11,6 @@ window.OMNIQ_ADMIN = {
     phone: "+263 718 093 349",
     country: "Zimbabwe",
     logoUrl: "/admin/assets/omniq-logo-clear.png",
+    logoMarkUrl: "/admin/assets/omniq-mark.png",
   },
 };

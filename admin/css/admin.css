@@ -813,9 +813,39 @@ th {
   margin-bottom: 1.25rem;
 }
 
+.receipt-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #0e1014;
+  border-radius: 12px;
+  padding: 0.65rem 0.8rem;
+  margin-bottom: 0.65rem;
+}
+
+.receipt-logo img,
 .receipt-sheet__head img {
   width: 150px;
   height: auto;
+  display: block;
+  background: transparent;
+}
+
+.lede-mini {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.finance-note {
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.finance-expenses {
+  grid-column: 1 / -1;
 }
 
 .bars {
