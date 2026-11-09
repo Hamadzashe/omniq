@@ -97,10 +97,11 @@ body.login-body {
 
 .login-card__logo img,
 .login-card img {
-  width: 140px;
+  width: min(220px, 100%);
   height: auto;
   display: block;
   margin: 0;
+  object-fit: contain;
 }
 
 .login-card h1 {
@@ -282,37 +283,29 @@ body.login-body {
 }
 
 .sidebar__brand {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  padding: 0.25rem 0.35rem;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.15rem 0.25rem 0.35rem;
 }
 
-.sidebar__brand img,
-.sidebar__mark {
-  width: 44px;
-  height: 44px;
+.sidebar__logo {
+  width: 100%;
+  max-width: 168px;
+  height: auto;
   object-fit: contain;
+  object-position: left center;
   background: none !important;
-  background-color: transparent !important;
   border: 0 !important;
   border-radius: 0 !important;
   padding: 0 !important;
   box-shadow: none !important;
   display: block;
-  flex-shrink: 0;
 }
 
-.sidebar__brand strong {
-  display: block;
-  color: #fff;
-  font-family: var(--display);
-  font-size: 1.05rem;
-}
-
-.sidebar__brand span {
+.sidebar__tag {
   font-size: 0.75rem;
   color: #8b93a7;
+  padding-left: 0.15rem;
 }
 
 .nav {
