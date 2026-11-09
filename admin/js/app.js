@@ -136,6 +136,27 @@ function showLogin(message = "") {
   status.classList.toggle("is-ok", false);
 }
 
+function refreshIcons(root = document) {
+  if (window.lucide?.createIcons) {
+    window.lucide.createIcons({
+      attrs: { "stroke-width": 2 },
+      nameAttr: "data-lucide",
+      root,
+    });
+  }
+}
+
+function setSidebarOpen(open) {
+  const sidebar = $("#sidebar");
+  const backdrop = $("#sidebar-backdrop");
+  if (!sidebar) return;
+  sidebar.classList.toggle("is-open", open);
+  if (backdrop) {
+    if (open) backdrop.removeAttribute("hidden");
+    else backdrop.setAttribute("hidden", "");
+  }
+}
+
 function showApp() {
   document.body.classList.remove("login-body");
   $("#login-view").classList.add("hidden");
@@ -143,6 +164,7 @@ function showApp() {
   const email = state.session.user.email || "";
   $("#user-email").textContent = email;
   $("#user-name").textContent = email.split("@")[0] || "Director";
+  refreshIcons();
 }
 
 function closeModal() {
@@ -163,10 +185,16 @@ function openModal(title, bodyHtml, onSubmit) {
       </form>
     </div>
   `;
+  refreshIcons(root);
   root.querySelectorAll("[data-close]").forEach((el) => {
     el.addEventListener("click", (e) => {
-      if (e.target.hasAttribute("data-close")) closeModal();
+      if (e.target.hasAttribute("data-close") || e.target.closest("[data-close]") === el) {
+        if (e.target === el || e.currentTarget === el) closeModal();
+      }
     });
+  });
+  root.querySelector(".modal-backdrop")?.addEventListener("click", (e) => {
+    if (e.target.classList.contains("modal-backdrop")) closeModal();
   });
   $("#modal-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -842,6 +870,7 @@ function render() {
   $$("#main-nav [data-route]").forEach((btn) => {
     btn.classList.toggle("is-active", btn.dataset.route === state.route);
   });
+  refreshIcons();
 }
 
 async function refresh() {
@@ -1182,14 +1211,16 @@ function bindUi() {
   });
 
   $("#menu-toggle").addEventListener("click", () => {
-    $("#sidebar").classList.toggle("is-open");
+    setSidebarOpen(!$("#sidebar").classList.contains("is-open"));
   });
+
+  $("#sidebar-backdrop")?.addEventListener("click", () => setSidebarOpen(false));
 
   $("#main-nav").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-route]");
     if (!btn) return;
     state.route = btn.dataset.route;
-    $("#sidebar").classList.remove("is-open");
+    setSidebarOpen(false);
     render();
   });
 

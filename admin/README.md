@@ -8,7 +8,7 @@ Private directors console for clients, DPO (SI 155), billing, finance, and recei
 |-------------|-----|
 | Production | `https://admin.omniq.co.zw` |
 
-`https://omniq.co.zw/admin` redirects to the admin subdomain. No login link on the public site.
+`https://omniq.co.zw/admin` returns 404. Admin is only on `admin.omniq.co.zw`. No login link on the public site.
 
 ## Cloudflare subdomain
 

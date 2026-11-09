@@ -184,13 +184,20 @@ export default {
       return handleAdminHost(request, env, url);
     }
 
-    // Public marketing site must not expose /admin — use admin.omniq.co.zw only
+    // Public marketing site: /admin must not work. Admin lives only on admin.omniq.co.zw
     if (
       url.pathname === "/admin" ||
       url.pathname === "/admin/" ||
       url.pathname.startsWith("/admin/")
     ) {
-      return Response.redirect("https://admin.omniq.co.zw/", 302);
+      return new Response("Not Found", {
+        status: 404,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-store",
+          "X-Robots-Tag": "noindex",
+        },
+      });
     }
 
     return env.ASSETS.fetch(request);

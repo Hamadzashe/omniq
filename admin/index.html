@@ -15,6 +15,7 @@
     />
     <link rel="stylesheet" href="/admin/css/admin.css" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@0.468.0"></script>
     <script src="/admin/js/config.js"></script>
   </head>
   <body>
@@ -59,9 +60,10 @@
     </div>
 
     <div id="app-view" class="app-shell hidden">
+      <div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
       <aside class="sidebar" id="sidebar">
         <div class="sidebar__brand">
-          <img src="/admin/assets/omniq-logo.png" alt="" width="42" height="42" />
+          <img src="/admin/assets/omniq-logo.png" alt="" width="48" height="48" />
           <div>
             <strong>OMNIQ</strong>
             <span>Admin console</span>
@@ -69,31 +71,39 @@
         </div>
         <nav class="nav" id="main-nav" aria-label="Admin">
           <button type="button" data-route="dashboard" class="is-active">
-            <span class="icon">⌂</span> Dashboard
+            <i data-lucide="layout-dashboard" aria-hidden="true"></i>
+            <span>Dashboard</span>
           </button>
           <button type="button" data-route="clients">
-            <span class="icon">◎</span> Clients
+            <i data-lucide="users" aria-hidden="true"></i>
+            <span>Clients</span>
           </button>
           <button type="button" data-route="services">
-            <span class="icon">✦</span> Services
+            <i data-lucide="briefcase" aria-hidden="true"></i>
+            <span>Services</span>
           </button>
           <button type="button" data-route="dpo">
-            <span class="icon">▣</span> DPO
+            <i data-lucide="shield-check" aria-hidden="true"></i>
+            <span>DPO</span>
           </button>
           <button type="button" data-route="billing">
-            <span class="icon">💳</span> Billing
+            <i data-lucide="credit-card" aria-hidden="true"></i>
+            <span>Billing</span>
           </button>
           <button type="button" data-route="finance">
-            <span class="icon">📊</span> Finance
+            <i data-lucide="line-chart" aria-hidden="true"></i>
+            <span>Finance</span>
           </button>
           <button type="button" data-route="receipts">
-            <span class="icon">🧾</span> Receipts
+            <i data-lucide="receipt" aria-hidden="true"></i>
+            <span>Receipts</span>
           </button>
         </nav>
         <div class="sidebar__user">
           <strong id="user-name">Director</strong>
           <span id="user-email"></span>
-          <button class="btn btn--ghost btn--sm" id="logout-btn" style="margin-top: 0.7rem; width: 100%">
+          <button class="btn btn--ghost btn--sm" id="logout-btn" type="button">
+            <i data-lucide="log-out" aria-hidden="true"></i>
             Log out
           </button>
         </div>
@@ -102,14 +112,18 @@
       <div class="main">
         <header class="topbar">
           <button class="btn btn--ghost menu-toggle" id="menu-toggle" type="button" aria-label="Open menu">
-            Menu
+            <i data-lucide="menu" aria-hidden="true"></i>
+            <span>Menu</span>
           </button>
           <div class="search">
+            <i data-lucide="search" class="search__icon" aria-hidden="true"></i>
             <input id="global-search" type="search" placeholder="Search clients, payments, DPO..." />
           </div>
           <div class="topbar__actions">
             <button class="btn btn--ghost btn--sm" id="alerts-btn" type="button" title="Due payments">
-              Alerts <span class="badge hidden" id="alerts-badge">0</span>
+              <i data-lucide="bell" aria-hidden="true"></i>
+              <span class="alerts-label">Alerts</span>
+              <span class="badge hidden" id="alerts-badge">0</span>
             </button>
           </div>
         </header>

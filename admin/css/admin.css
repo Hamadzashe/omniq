@@ -101,13 +101,15 @@ body.login-body {
 
 .field {
   display: grid;
-  gap: 0.4rem;
-  margin-bottom: 0.9rem;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
 }
 
 .field label {
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 600;
+  color: #3d4556;
+  letter-spacing: 0.01em;
 }
 
 .field input,
@@ -116,18 +118,68 @@ body.login-body {
 .search input,
 .modal input,
 .modal select,
-.modal textarea {
+.modal textarea,
+.login-card input {
   width: 100%;
-  border: 1px solid var(--line);
+  border: 1px solid #d7deea;
   border-radius: 12px;
-  padding: 0.75rem 0.9rem;
+  padding: 0.8rem 0.95rem;
+  background: #f7f9fc;
+  color: var(--text);
+  box-shadow: inset 0 1px 2px rgba(20, 24, 36, 0.03);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.field input::placeholder,
+.field textarea::placeholder,
+.search input::placeholder,
+.modal input::placeholder,
+.login-card input::placeholder {
+  color: #939bb0;
+}
+
+.field input:hover,
+.field select:hover,
+.field textarea:hover,
+.search input:hover,
+.modal input:hover,
+.modal select:hover,
+.modal textarea:hover,
+.login-card input:hover {
+  border-color: #b9c4d6;
   background: #fff;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.search input:focus,
+.modal input:focus,
+.modal select:focus,
+.modal textarea:focus,
+.login-card input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.field select,
+.modal select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #6b7385 50%),
+    linear-gradient(135deg, #6b7385 50%, transparent 50%);
+  background-position: calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 2rem;
 }
 
 .field textarea,
 .modal textarea {
   resize: vertical;
-  min-height: 90px;
+  min-height: 96px;
+  line-height: 1.45;
 }
 
 .btn {
@@ -158,6 +210,16 @@ body.login-body {
   background: #fff;
   border: 1px solid var(--line);
   color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.btn svg {
+  width: 1rem;
+  height: 1rem;
+  stroke-width: 2;
 }
 
 .btn--danger {
@@ -208,12 +270,12 @@ body.login-body {
 }
 
 .sidebar__brand img {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
-  background: #fff;
-  border-radius: 12px;
-  padding: 0.25rem;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
 }
 
 .sidebar__brand strong {
@@ -248,10 +310,12 @@ body.login-body {
   cursor: pointer;
 }
 
-.nav button span.icon {
-  width: 1.25rem;
-  text-align: center;
-  opacity: 0.85;
+.nav button svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+  stroke-width: 2;
+  opacity: 0.9;
 }
 
 .nav button.is-active,
@@ -262,6 +326,12 @@ body.login-body {
 
 .nav button.is-active {
   box-shadow: inset 0 0 0 1px rgba(0, 168, 213, 0.35);
+}
+
+.nav button.is-active svg,
+.nav button:hover svg {
+  opacity: 1;
+  color: var(--accent);
 }
 
 .sidebar__user {
@@ -281,6 +351,18 @@ body.login-body {
   font-size: 0.75rem;
   color: #8b93a7;
   word-break: break-all;
+}
+
+.sidebar__user .btn {
+  margin-top: 0.7rem;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.sidebar-backdrop {
+  display: none;
 }
 
 .main {
@@ -309,24 +391,32 @@ body.login-body {
   position: relative;
 }
 
-.search input {
-  padding-left: 2.4rem;
-  background: #f7f8fb;
-}
-
-.search::before {
-  content: "⌕";
+.search__icon {
   position: absolute;
   left: 0.9rem;
   top: 50%;
   transform: translateY(-50%);
+  width: 1rem;
+  height: 1rem;
   color: var(--muted);
+  pointer-events: none;
+  stroke-width: 2;
+}
+
+.search input {
+  padding-left: 2.55rem;
+  background: #f7f9fc;
+  min-height: 44px;
 }
 
 .topbar__actions {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+}
+
+#alerts-btn {
+  min-height: 44px;
 }
 
 .badge {
@@ -353,6 +443,7 @@ body.login-body {
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1.1rem;
+  flex-wrap: wrap;
 }
 
 .page-head h1 {
@@ -644,6 +735,7 @@ th {
 
 .menu-toggle {
   display: none;
+  min-height: 44px;
 }
 
 @media (max-width: 1100px) {
@@ -662,13 +754,27 @@ th {
     grid-template-columns: 1fr;
   }
 
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(14, 16, 20, 0.45);
+    z-index: 35;
+  }
+
+  .sidebar-backdrop[hidden] {
+    display: none;
+  }
+
   .sidebar {
     position: fixed;
     inset: 0 auto 0 0;
-    width: min(270px, 86vw);
+    width: min(288px, 88vw);
+    max-width: 320px;
     transform: translateX(-105%);
     transition: transform 0.2s ease;
     z-index: 40;
+    height: 100dvh;
   }
 
   .sidebar.is-open {
@@ -679,8 +785,98 @@ th {
     display: inline-flex;
   }
 
+  .topbar {
+    padding: 0.75rem 1rem;
+    gap: 0.65rem;
+  }
+
+  .search {
+    max-width: none;
+  }
+
+  .alerts-label {
+    display: none;
+  }
+
   .content {
     padding: 1rem;
+  }
+
+  .page-head {
+    align-items: stretch;
+  }
+
+  .page-head .btn,
+  .page-head .row-actions {
+    width: 100%;
+  }
+
+  .page-head .row-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .welcome {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .welcome .btn {
+    width: 100%;
+  }
+
+  .list-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .list-item .row-actions {
+    width: 100%;
+  }
+
+  .list-item .row-actions .btn {
+    flex: 1;
+  }
+
+  .table-wrap {
+    margin: 0 -0.15rem;
+  }
+
+  table {
+    min-width: 640px;
+  }
+
+  .modal {
+    width: min(560px, 100%);
+    padding: 1rem;
+    border-radius: 16px;
+  }
+
+  .modal__actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal__actions .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .grid--stats {
+    grid-template-columns: 1fr;
+  }
+
+  .page-head h1 {
+    font-size: 1.3rem;
+  }
+
+  .stat__value {
+    font-size: 1.35rem;
+  }
+
+  .login-card {
+    padding: 1.35rem;
+    border-radius: 18px;
   }
 }
 
