@@ -153,6 +153,36 @@ async function serveAssets(request, env, pathname) {
   return res;
 }
 
+async function serveNotFoundPage(request, env, { noindex = true } = {}) {
+  const page = await serveAssets(request, env, "/404.html");
+  const headers = new Headers(page.headers);
+  headers.set("Content-Type", "text/html; charset=utf-8");
+  headers.set("Cache-Control", "no-store");
+  if (noindex) headers.set("X-Robots-Tag", "noindex, nofollow");
+
+  // Always return HTTP 404 even if the HTML asset itself loaded with 200
+  if (page.ok || page.status === 404) {
+    return new Response(page.body, {
+      status: 404,
+      statusText: "Not Found",
+      headers,
+    });
+  }
+
+  // Fallback if 404.html is missing from the deploy
+  return new Response(
+    `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Page not found | OMNIQ</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:system-ui,sans-serif;background:#eef0f2;color:#12141a;padding:1.5rem}main{max-width:28rem;text-align:center;background:#fff;border-radius:1.25rem;padding:2rem;box-shadow:0 12px 40px rgba(0,0,0,.08)}a{display:inline-block;margin-top:1rem;padding:.75rem 1.1rem;border-radius:.75rem;background:#00a8d5;color:#fff;text-decoration:none;font-weight:600}</style></head><body><main><h1>Page not found</h1><p>The page you requested is not available.</p><a href="/">Return home</a></main></body></html>`,
+    {
+      status: 404,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+        "X-Robots-Tag": "noindex, nofollow",
+      },
+    }
+  );
+}
+
 async function handleAdminHost(request, env, url) {
   const path = url.pathname;
 
@@ -210,16 +240,21 @@ export default {
       url.pathname.startsWith("/admin/") ||
       url.pathname.startsWith("/admin.")
     ) {
-      return new Response("Not Found", {
-        status: 404,
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "Cache-Control": "no-store",
-          "X-Robots-Tag": "noindex, nofollow",
-        },
-      });
+      return serveNotFoundPage(request, env);
     }
 
-    return env.ASSETS.fetch(request);
+    // Explicit custom 404 route
+    if (url.pathname === "/404" || url.pathname === "/404.html") {
+      return serveNotFoundPage(request, env);
+    }
+
+    const assetResponse = await env.ASSETS.fetch(request);
+
+    // Replace plain asset misses with the branded 404 page
+    if (assetResponse.status === 404) {
+      return serveNotFoundPage(request, env);
+    }
+
+    return assetResponse;
   },
 };
