@@ -18,8 +18,16 @@ const state = {
   search: "",
   cache: {},
   financePeriod: sessionStorage.getItem("omniq_finance_period") || "this_month",
+  financeCategory: sessionStorage.getItem("omniq_finance_category") || "all",
   realtimeReady: false,
 };
+
+const FINANCE_CATEGORIES = [
+  { id: "all", label: "All" },
+  { id: "income", label: "Income" },
+  { id: "capital", label: "Capital" },
+  { id: "expenses", label: "Expenses" },
+];
 
 const REALTIME_TABLES = [
   "clients",
@@ -1198,6 +1206,235 @@ function exportFinanceCsv() {
   toast("Finance export downloaded.");
 }
 
+function financeActionButtons(editAction, deleteAction, id) {
+  return `
+    <div class="finance-row__actions">
+      <button class="btn btn--ghost btn--sm" type="button" data-action="${editAction}" data-id="${id}">Edit</button>
+      <button class="btn btn--danger btn--sm" type="button" data-action="${deleteAction}" data-id="${id}">Delete</button>
+    </div>
+  `;
+}
+
+function financeSheetRow(cells, actionsHtml = "") {
+  const cellHtml = cells
+    .map(
+      (cell) =>
+        `<div class="finance-cell${cell.strong ? " finance-cell--amount" : ""}${
+          cell.wide ? " finance-cell--wide" : ""
+        }" data-label="${escapeHtml(cell.label)}">${cell.html}</div>`
+    )
+    .join("");
+  return `<div class="finance-row">${cellHtml}${
+    actionsHtml
+      ? `<div class="finance-cell finance-cell--actions" data-label="Actions">${actionsHtml}</div>`
+      : ""
+  }</div>`;
+}
+
+function financeSheetBlock({
+  tone = "",
+  title,
+  subtitle = "",
+  totalLabel = "Total",
+  totalValue,
+  columns,
+  bodyHtml,
+  emptyMessage,
+}) {
+  return `
+    <section class="finance-sheet ${tone ? `finance-sheet--${tone}` : ""}">
+      <header class="finance-sheet__head">
+        <div>
+          <h3>${escapeHtml(title)}</h3>
+          ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}
+        </div>
+        <div class="finance-sheet__total">
+          <span>${escapeHtml(totalLabel)}</span>
+          <strong>${totalValue}</strong>
+        </div>
+      </header>
+      <div class="finance-sheet__table" style="--finance-cols: ${columns.length + 1}">
+        <div class="finance-row finance-row--head">
+          ${columns
+            .map(
+              (col) =>
+                `<div class="finance-cell${col.wide ? " finance-cell--wide" : ""}${
+                  col.amount ? " finance-cell--amount" : ""
+                }">${escapeHtml(col.label)}</div>`
+            )
+            .join("")}
+          <div class="finance-cell finance-cell--actions">Actions</div>
+        </div>
+        ${bodyHtml || `<div class="finance-empty">${escapeHtml(emptyMessage)}</div>`}
+      </div>
+    </section>
+  `;
+}
+
+function groupExpensesByCategory(expenses) {
+  const groups = new Map();
+  expenses.forEach((expense) => {
+    const key = String(expense.category || "").trim() || "Uncategorised";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(expense);
+  });
+  return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function renderIncomeSheet(data) {
+  const rows = data.income
+    .map((r) =>
+      financeSheetRow(
+        [
+          { label: "Date", html: escapeHtml(fmtDate(r.entry_date)) },
+          {
+            label: "Description",
+            wide: true,
+            html: `<strong>${escapeHtml(r.title)}</strong>${
+              r.notes ? `<span class="finance-note-line">${escapeHtml(r.notes)}</span>` : ""
+            }`,
+          },
+          {
+            label: "Source",
+            html: escapeHtml(
+              r.source === "client_payment" ? "Client payment" : "Manual"
+            ),
+          },
+          {
+            label: "Amount",
+            strong: true,
+            html: money(r.amount, r.currency),
+          },
+        ],
+        financeActionButtons("revenue-edit", "revenue-del", r.id)
+      )
+    )
+    .join("");
+
+  return financeSheetBlock({
+    tone: "income",
+    title: "Income",
+    subtitle: "Client payments and other revenue",
+    totalValue: money(data.incomeTotal),
+    columns: [
+      { label: "Date" },
+      { label: "Description", wide: true },
+      { label: "Source" },
+      { label: "Amount", amount: true },
+    ],
+    bodyHtml: rows,
+    emptyMessage: "No income in this period.",
+  });
+}
+
+function renderCapitalSheet(data) {
+  const rows = data.capital
+    .map((c) =>
+      financeSheetRow(
+        [
+          { label: "Date", html: escapeHtml(fmtDate(c.contribution_date)) },
+          {
+            label: "Contributor",
+            wide: true,
+            html: `<strong>${escapeHtml(c.contributor_name)}</strong>${
+              c.notes ? `<span class="finance-note-line">${escapeHtml(c.notes)}</span>` : ""
+            }`,
+          },
+          { label: "Type", html: "Capital introduced" },
+          {
+            label: "Amount",
+            strong: true,
+            html: money(c.amount, c.currency),
+          },
+        ],
+        financeActionButtons("capital-edit", "capital-del", c.id)
+      )
+    )
+    .join("");
+
+  return financeSheetBlock({
+    tone: "capital",
+    title: "Capital",
+    subtitle: "Director and shareholder contributions (all time)",
+    totalValue: money(data.capitalAllTime),
+    columns: [
+      { label: "Date" },
+      { label: "Contributor", wide: true },
+      { label: "Type" },
+      { label: "Amount", amount: true },
+    ],
+    bodyHtml: rows,
+    emptyMessage: "No capital contributions recorded.",
+  });
+}
+
+function renderExpensesSheet(data) {
+  const grouped = groupExpensesByCategory(data.expenses);
+  const bodyHtml = grouped.length
+    ? grouped
+        .map(([category, rows]) => {
+          const subtotal = sumAmounts(rows);
+          const rowHtml = rows
+            .map((e) =>
+              financeSheetRow(
+                [
+                  { label: "Date", html: escapeHtml(fmtDate(e.expense_date)) },
+                  {
+                    label: "Description",
+                    wide: true,
+                    html: `<strong>${escapeHtml(e.title)}</strong>${
+                      e.notes
+                        ? `<span class="finance-note-line">${escapeHtml(e.notes)}</span>`
+                        : ""
+                    }`,
+                  },
+                  {
+                    label: "Paid from",
+                    html: `<span class="pill pill--${
+                      expenseFundedBy(e) === "capital" ? "accent" : "ok"
+                    }">${escapeHtml(fundedByLabel(e))}</span>`,
+                  },
+                  {
+                    label: "Amount",
+                    strong: true,
+                    html: money(e.amount, e.currency),
+                  },
+                ],
+                financeActionButtons("expense-edit", "expense-del", e.id)
+              )
+            )
+            .join("");
+          return `
+            <div class="finance-group">
+              <div class="finance-group__head">
+                <strong>${escapeHtml(category)}</strong>
+                <span>${rows.length} item${rows.length === 1 ? "" : "s"} · ${money(
+                  subtotal
+                )}</span>
+              </div>
+              ${rowHtml}
+            </div>
+          `;
+        })
+        .join("")
+    : "";
+
+  return financeSheetBlock({
+    tone: "expenses",
+    title: "Expenses",
+    subtitle: "Grouped by category · drawn from capital or income",
+    totalValue: money(data.expenseTotal),
+    columns: [
+      { label: "Date" },
+      { label: "Description", wide: true },
+      { label: "Paid from" },
+      { label: "Amount", amount: true },
+    ],
+    bodyHtml,
+    emptyMessage: "No expenses in this period.",
+  });
+}
+
 function renderFinance() {
   // Keep "This month" aligned to the calendar automatically each new month
   const calendarMonth = todayISO().slice(0, 7);
@@ -1208,6 +1445,10 @@ function renderFinance() {
   }
   sessionStorage.setItem("omniq_finance_calendar_month", calendarMonth);
 
+  if (!FINANCE_CATEGORIES.some((c) => c.id === state.financeCategory)) {
+    state.financeCategory = "all";
+  }
+
   const data = getFilteredFinance();
   const periodOptions = FINANCE_PERIODS.map(
     (p) =>
@@ -1215,6 +1456,30 @@ function renderFinance() {
         state.financePeriod === p.id ? "selected" : ""
       }>${escapeHtml(p.label)}</option>`
   ).join("");
+
+  const categoryTabs = FINANCE_CATEGORIES.map((c) => {
+    const count =
+      c.id === "income"
+        ? data.income.length
+        : c.id === "capital"
+          ? data.capital.length
+          : c.id === "expenses"
+            ? data.expenses.length
+            : data.income.length + data.capital.length + data.expenses.length;
+    return `<button type="button" class="finance-tab${
+      state.financeCategory === c.id ? " is-active" : ""
+    }" data-action="finance-category" data-category="${c.id}">
+      <span>${escapeHtml(c.label)}</span>
+      <em>${count}</em>
+    </button>`;
+  }).join("");
+
+  const showIncome =
+    state.financeCategory === "all" || state.financeCategory === "income";
+  const showCapital =
+    state.financeCategory === "all" || state.financeCategory === "capital";
+  const showExpenses =
+    state.financeCategory === "all" || state.financeCategory === "expenses";
 
   return `
     <div class="page-head">
@@ -1241,7 +1506,7 @@ function renderFinance() {
       <button class="btn btn--ghost" type="button" data-action="finance-export">Export CSV</button>
     </div>
 
-    <div class="grid grid--stats" style="margin-bottom:1rem">
+    <div class="grid grid--stats finance-stats" style="margin-bottom:1rem">
       <div class="card stat stat--ok">
         <div class="stat__label">Income</div>
         <div class="stat__value">${money(data.incomeTotal)}</div>
@@ -1268,82 +1533,14 @@ function renderFinance() {
       </div>
     </div>
 
-    <div class="grid grid--2">
-      <section>
-        <h3 class="section-label">Income</h3>
-        ${
-          data.income.length
-            ? `<div class="stack-list">${data.income
-                .map(
-                  (r) => `<article class="stack-card">
-                    <div class="stack-card__main">
-                      <strong>${escapeHtml(r.title)}</strong>
-                      <span>${fmtDate(r.entry_date)}${
-                        r.source === "client_payment" ? " · Client payment" : ""
-                      }</span>
-                      <span class="stack-card__amount">${money(r.amount, r.currency)}</span>
-                    </div>
-                    <div class="row-actions">
-                      <button class="btn btn--ghost btn--sm" type="button" data-action="revenue-edit" data-id="${r.id}">Edit</button>
-                      <button class="btn btn--danger btn--sm" type="button" data-action="revenue-del" data-id="${r.id}">Delete</button>
-                    </div>
-                  </article>`
-                )
-                .join("")}</div>`
-            : emptyCard("No income in this period.")
-        }
-      </section>
-      <section>
-        <h3 class="section-label">Capital introduced</h3>
-        ${
-          data.capital.length
-            ? `<div class="stack-list">${data.capital
-                .map(
-                  (c) => `<article class="stack-card">
-                    <div class="stack-card__main">
-                      <strong>${escapeHtml(c.contributor_name)}</strong>
-                      <span>${fmtDate(c.contribution_date)}${
-                        c.notes ? ` · ${escapeHtml(c.notes)}` : ""
-                      }</span>
-                      <span class="stack-card__amount">${money(c.amount, c.currency)}</span>
-                    </div>
-                    <div class="row-actions">
-                      <button class="btn btn--ghost btn--sm" type="button" data-action="capital-edit" data-id="${c.id}">Edit</button>
-                      <button class="btn btn--danger btn--sm" type="button" data-action="capital-del" data-id="${c.id}">Delete</button>
-                    </div>
-                  </article>`
-                )
-                .join("")}</div>`
-            : emptyCard("No capital contributions recorded.")
-        }
-      </section>
-      <section class="finance-expenses">
-        <h3 class="section-label">Expenses</h3>
-        ${
-          data.expenses.length
-            ? `<div class="stack-list">${data.expenses
-                .map(
-                  (e) => `<article class="stack-card">
-                    <div class="stack-card__main">
-                      <strong>${escapeHtml(e.title)}</strong>
-                      <span>${fmtDate(e.expense_date)} · ${escapeHtml(
-                        e.category || "Uncategorised"
-                      )}</span>
-                      <div class="stack-card__meta"><span class="pill pill--${
-                        expenseFundedBy(e) === "capital" ? "accent" : "ok"
-                      }">${escapeHtml(fundedByLabel(e))}</span></div>
-                      <span class="stack-card__amount">${money(e.amount, e.currency)}</span>
-                    </div>
-                    <div class="row-actions">
-                      <button class="btn btn--ghost btn--sm" type="button" data-action="expense-edit" data-id="${e.id}">Edit</button>
-                      <button class="btn btn--danger btn--sm" type="button" data-action="expense-del" data-id="${e.id}">Delete</button>
-                    </div>
-                  </article>`
-                )
-                .join("")}</div>`
-            : emptyCard("No expenses in this period.")
-        }
-      </section>
+    <div class="finance-tabs" role="tablist" aria-label="Finance categories">
+      ${categoryTabs}
+    </div>
+
+    <div class="finance-workbook">
+      ${showIncome ? renderIncomeSheet(data) : ""}
+      ${showCapital ? renderCapitalSheet(data) : ""}
+      ${showExpenses ? renderExpensesSheet(data) : ""}
     </div>
   `;
 }
@@ -1958,9 +2155,31 @@ function expenseForm(existing = null) {
       <div class="field"><label>Title</label><input name="title" required value="${escapeHtml(
         existing?.title || ""
       )}" /></div>
-      <div class="field"><label>Category</label><input name="category" placeholder="e.g. Software, Travel" value="${escapeHtml(
-        existing?.category || ""
-      )}" /></div>
+      <div class="field"><label>Category</label>
+        <input name="category" list="expense-category-options" placeholder="e.g. Software, Travel, Marketing" value="${escapeHtml(
+          existing?.category || ""
+        )}" />
+        <datalist id="expense-category-options">
+          ${[...new Set(
+            (state.cache.expenses || [])
+              .map((e) => String(e.category || "").trim())
+              .filter(Boolean)
+              .concat([
+                "Software",
+                "Travel",
+                "Marketing",
+                "Office",
+                "Professional fees",
+                "Hosting",
+                "Training",
+                "Utilities",
+              ])
+          )]
+            .sort((a, b) => a.localeCompare(b))
+            .map((c) => `<option value="${escapeHtml(c)}"></option>`)
+            .join("")}
+        </datalist>
+      </div>
       <div class="field"><label>Amount</label><input name="amount" type="number" step="0.01" required value="${
         existing?.amount ?? ""
       }" /></div>
@@ -2321,6 +2540,15 @@ function bindUi() {
       if (error) return toast(error.message);
       await refresh();
       return toast("Capital contribution deleted.");
+    }
+    if (action === "finance-category") {
+      const next = btn.dataset.category || "all";
+      state.financeCategory = FINANCE_CATEGORIES.some((c) => c.id === next)
+        ? next
+        : "all";
+      sessionStorage.setItem("omniq_finance_category", state.financeCategory);
+      render();
+      return;
     }
     if (action === "finance-export") {
       exportFinanceCsv();
