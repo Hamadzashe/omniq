@@ -36,6 +36,8 @@ const REALTIME_TABLES = [
 let realtimeChannel = null;
 let refreshTimer = null;
 let refreshInFlight = null;
+let refreshDirty = false;
+let livePollTimer = null;
 
 const TIER_LABELS = {
   tier_1: "Tier 1 (50–1,000 subjects)",
@@ -1245,23 +1247,23 @@ function renderFinance() {
         <div class="stat__value">${money(data.incomeTotal)}</div>
         <div class="stat__meta">After income costs ${money(data.incomeRemaining)}</div>
       </div>
+      <div class="card stat stat--warn">
+        <div class="stat__label">Total expenses</div>
+        <div class="stat__value">${money(data.expenseTotal)}</div>
+        <div class="stat__meta">From capital ${money(
+          data.capitalSpend
+        )} · from income ${money(data.incomeSpend)}</div>
+      </div>
       <div class="card stat stat--accent">
         <div class="stat__label">Capital introduced</div>
         <div class="stat__value">${money(data.capitalAllTime)}</div>
         <div class="stat__meta">This period ${money(data.capitalPeriodTotal)}</div>
       </div>
-      <div class="card stat stat--warn">
-        <div class="stat__label">Spent from capital</div>
-        <div class="stat__value">${money(data.capitalSpend)}</div>
-        <div class="stat__meta">From income ${money(data.incomeSpend)} · all expenses ${money(
-          data.expenseTotal
-        )}</div>
-      </div>
       <div class="card stat">
         <div class="stat__label">Capital remaining</div>
         <div class="stat__value">${money(data.capitalRemaining)}</div>
-        <div class="stat__meta">Live pot · period left ${money(
-          data.capitalRemainingPeriod
+        <div class="stat__meta">After capital expenses ${money(
+          data.capitalSpendAllTime
         )}</div>
       </div>
     </div>
@@ -1405,10 +1407,18 @@ function render() {
 }
 
 async function refresh() {
-  if (refreshInFlight) return refreshInFlight;
+  // If a load is already running, mark dirty so we reload again after it
+  // finishes — otherwise a save can await a stale in-flight fetch.
+  if (refreshInFlight) {
+    refreshDirty = true;
+    return refreshInFlight;
+  }
   refreshInFlight = (async () => {
-    await loadAll();
-    render();
+    do {
+      refreshDirty = false;
+      await loadAll();
+      render();
+    } while (refreshDirty);
   })();
   try {
     await refreshInFlight;
@@ -1421,7 +1431,30 @@ function scheduleRefresh() {
   window.clearTimeout(refreshTimer);
   refreshTimer = window.setTimeout(() => {
     refresh().catch((err) => console.error(err));
-  }, 120);
+  }, 80);
+}
+
+/** Patch local cache and re-render immediately, then sync from server. */
+async function commitAndRefresh(mutator) {
+  const result = await mutator();
+  if (result?.error) throw result.error;
+  const row = result?.data;
+  const table = result?.table;
+  const action = result?.action || "upsert";
+  if (row && table && state.cache[table]) {
+    const list = state.cache[table] || [];
+    if (action === "delete") {
+      state.cache[table] = list.filter((item) => item.id !== row.id);
+    } else {
+      const without = list.filter((item) => item.id !== row.id);
+      state.cache[table] = [row, ...without];
+    }
+    render();
+  }
+  // Ensure any concurrent refresh re-runs with the new row
+  refreshDirty = true;
+  await refresh();
+  return row;
 }
 
 function stopRealtime() {
@@ -1429,12 +1462,20 @@ function stopRealtime() {
     sb.removeChannel(realtimeChannel);
     realtimeChannel = null;
   }
+  if (livePollTimer) {
+    window.clearInterval(livePollTimer);
+    livePollTimer = null;
+  }
   state.realtimeReady = false;
 }
 
 function startRealtime() {
-  if (realtimeChannel || !state.session) return;
-  let channel = sb.channel("omniq-admin-live");
+  if (!state.session) return;
+  if (realtimeChannel) {
+    sb.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
+  let channel = sb.channel(`omniq-admin-live-${state.session.user.id}`);
   REALTIME_TABLES.forEach((table) => {
     channel = channel.on(
       "postgres_changes",
@@ -1444,7 +1485,18 @@ function startRealtime() {
   });
   realtimeChannel = channel.subscribe((status) => {
     state.realtimeReady = status === "SUBSCRIBED";
+    if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+      window.setTimeout(() => {
+        if (state.session) startRealtime();
+      }, 1500);
+    }
   });
+  if (!livePollTimer) {
+    livePollTimer = window.setInterval(() => {
+      if (!state.session || document.hidden) return;
+      scheduleRefresh();
+    }, 8000);
+  }
 }
 
 function clientForm(existing = null) {
@@ -1873,20 +1925,26 @@ function capitalForm(existing = null) {
         notes: values.notes || null,
         updated_at: new Date().toISOString(),
       };
-      if (existing) {
-        const { error } = await sb
+      await commitAndRefresh(async () => {
+        if (existing) {
+          const res = await sb
+            .from("capital_contributions")
+            .update(payload)
+            .eq("id", existing.id)
+            .select("*")
+            .single();
+          return { ...res, table: "capital", action: "upsert" };
+        }
+        const res = await sb
           .from("capital_contributions")
-          .update(payload)
-          .eq("id", existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await sb.from("capital_contributions").insert({
-          ...payload,
-          created_by: state.session.user.id,
-        });
-        if (error) throw error;
-      }
-      await refresh();
+          .insert({
+            ...payload,
+            created_by: state.session.user.id,
+          })
+          .select("*")
+          .single();
+        return { ...res, table: "capital", action: "upsert" };
+      });
       toast(existing ? "Capital contribution updated." : "Capital contribution recorded.");
     }
   );
@@ -1931,20 +1989,26 @@ function expenseForm(existing = null) {
         notes: values.notes || null,
         updated_at: new Date().toISOString(),
       };
-      if (existing) {
-        const { error } = await sb
+      await commitAndRefresh(async () => {
+        if (existing) {
+          const res = await sb
+            .from("expenses")
+            .update(payload)
+            .eq("id", existing.id)
+            .select("*")
+            .single();
+          return { ...res, table: "expenses", action: "upsert" };
+        }
+        const res = await sb
           .from("expenses")
-          .update(payload)
-          .eq("id", existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await sb.from("expenses").insert({
-          ...payload,
-          created_by: state.session.user.id,
-        });
-        if (error) throw error;
-      }
-      await refresh();
+          .insert({
+            ...payload,
+            created_by: state.session.user.id,
+          })
+          .select("*")
+          .single();
+        return { ...res, table: "expenses", action: "upsert" };
+      });
       toast(existing ? "Expense updated." : "Expense saved.");
     }
   );
@@ -1979,21 +2043,27 @@ function revenueForm(existing = null) {
         notes: values.notes || null,
         updated_at: new Date().toISOString(),
       };
-      if (existing) {
-        const { error } = await sb
+      await commitAndRefresh(async () => {
+        if (existing) {
+          const res = await sb
+            .from("revenue_entries")
+            .update(payload)
+            .eq("id", existing.id)
+            .select("*")
+            .single();
+          return { ...res, table: "revenue", action: "upsert" };
+        }
+        const res = await sb
           .from("revenue_entries")
-          .update(payload)
-          .eq("id", existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await sb.from("revenue_entries").insert({
-          ...payload,
-          source: "manual",
-          created_by: state.session.user.id,
-        });
-        if (error) throw error;
-      }
-      await refresh();
+          .insert({
+            ...payload,
+            source: "manual",
+            created_by: state.session.user.id,
+          })
+          .select("*")
+          .single();
+        return { ...res, table: "revenue", action: "upsert" };
+      });
       toast(existing ? "Income updated." : "Income saved.");
     }
   );
@@ -2278,6 +2348,11 @@ async function boot() {
 }
 
 bindUi();
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && state.session) {
+    scheduleRefresh();
+  }
+});
 sb.auth.onAuthStateChange((_event, session) => {
   state.session = session;
   if (!session) {
