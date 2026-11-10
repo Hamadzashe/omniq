@@ -832,6 +832,7 @@ function renderServices() {
                 <div class="row-actions">
                   <button class="btn btn--ghost btn--sm" type="button" data-action="engagement-edit" data-id="${e.id}">Edit</button>
                   <button class="btn btn--primary btn--sm" type="button" data-action="engagement-bill" data-id="${e.id}">Create due</button>
+                  <button class="btn btn--danger btn--sm" type="button" data-action="engagement-del" data-id="${e.id}">Delete</button>
                 </div>
               </article>`;
             })
@@ -902,6 +903,7 @@ function renderDpo() {
                 <div class="row-actions">
                   <button class="btn btn--ghost btn--sm" type="button" data-action="dpo-edit" data-id="${d.id}">Edit</button>
                   <button class="btn btn--primary btn--sm" type="button" data-action="dpo-bill" data-id="${d.id}">Create due</button>
+                  <button class="btn btn--danger btn--sm" type="button" data-action="dpo-del" data-id="${d.id}">Delete</button>
                 </div>
               </article>`;
             })
@@ -950,6 +952,8 @@ function renderBilling() {
                         ? `<button class="btn btn--ghost btn--sm" type="button" data-action="receipt-view" data-id="${p.receipt_id}">View receipt</button>`
                         : ""
                   }
+                  <button class="btn btn--ghost btn--sm" type="button" data-action="payment-edit" data-id="${p.id}">Edit</button>
+                  <button class="btn btn--danger btn--sm" type="button" data-action="payment-del" data-id="${p.id}">Delete</button>
                 </div>
               </article>`;
             })
@@ -1271,6 +1275,10 @@ function renderFinance() {
                       }</span>
                       <span class="stack-card__amount">${money(r.amount, r.currency)}</span>
                     </div>
+                    <div class="row-actions">
+                      <button class="btn btn--ghost btn--sm" type="button" data-action="revenue-edit" data-id="${r.id}">Edit</button>
+                      <button class="btn btn--danger btn--sm" type="button" data-action="revenue-del" data-id="${r.id}">Delete</button>
+                    </div>
                   </article>`
                 )
                 .join("")}</div>`
@@ -1290,6 +1298,10 @@ function renderFinance() {
                         c.notes ? ` · ${escapeHtml(c.notes)}` : ""
                       }</span>
                       <span class="stack-card__amount">${money(c.amount, c.currency)}</span>
+                    </div>
+                    <div class="row-actions">
+                      <button class="btn btn--ghost btn--sm" type="button" data-action="capital-edit" data-id="${c.id}">Edit</button>
+                      <button class="btn btn--danger btn--sm" type="button" data-action="capital-del" data-id="${c.id}">Delete</button>
                     </div>
                   </article>`
                 )
@@ -1313,6 +1325,10 @@ function renderFinance() {
                         expenseFundedBy(e) === "capital" ? "accent" : "ok"
                       }">${escapeHtml(fundedByLabel(e))}</span></div>
                       <span class="stack-card__amount">${money(e.amount, e.currency)}</span>
+                    </div>
+                    <div class="row-actions">
+                      <button class="btn btn--ghost btn--sm" type="button" data-action="expense-edit" data-id="${e.id}">Edit</button>
+                      <button class="btn btn--danger btn--sm" type="button" data-action="expense-del" data-id="${e.id}">Delete</button>
                     </div>
                   </article>`
                 )
@@ -1350,6 +1366,8 @@ function renderReceipts() {
                 </div>
                 <div class="row-actions">
                   <button class="btn btn--ghost btn--sm" type="button" data-action="receipt-view" data-id="${r.id}">Open</button>
+                  <button class="btn btn--ghost btn--sm" type="button" data-action="receipt-edit" data-id="${r.id}">Edit</button>
+                  <button class="btn btn--danger btn--sm" type="button" data-action="receipt-del" data-id="${r.id}">Delete</button>
                 </div>
               </article>`
             )
@@ -1618,38 +1636,79 @@ function dpoForm(existing = null) {
   );
 }
 
-function paymentForm() {
+function paymentForm(existing = null) {
   if (!state.cache.clients.length) {
     toast("Add a client first.");
     return;
   }
+  const status = existing?.status || "pending";
   openModal(
-    "Add payment due",
+    existing ? "Edit payment" : "Add payment due",
     `
-      <div class="field"><label>Client</label><select name="client_id" required>${clientOptions()}</select></div>
-      <div class="field"><label>Service</label><select name="service_id"><option value="">Custom / other</option>${serviceOptions()}</select></div>
-      <div class="field"><label>Description</label><input name="description" required placeholder="e.g. Website development deposit" /></div>
-      <div class="field"><label>Amount</label><input name="amount" type="number" step="0.01" required /></div>
-      <div class="field"><label>Due date</label><input name="due_date" type="date" required value="${todayISO()}" /></div>
-      <div class="field"><label>Notes</label><textarea name="notes"></textarea></div>
+      <div class="field"><label>Client</label><select name="client_id" required>${clientOptions(
+        existing?.client_id || ""
+      )}</select></div>
+      <div class="field"><label>Service</label><select name="service_id"><option value="">Custom / other</option>${serviceOptions(
+        existing?.service_id || ""
+      )}</select></div>
+      <div class="field"><label>Description</label><input name="description" required placeholder="e.g. Website development deposit" value="${escapeHtml(
+        existing?.description || ""
+      )}" /></div>
+      <div class="field"><label>Amount</label><input name="amount" type="number" step="0.01" required value="${
+        existing?.amount ?? ""
+      }" /></div>
+      <div class="field"><label>Due date</label><input name="due_date" type="date" required value="${
+        existing?.due_date || todayISO()
+      }" /></div>
+      <div class="field"><label>Status</label>
+        <select name="status">
+          <option value="pending" ${status === "pending" ? "selected" : ""}>Pending</option>
+          <option value="paid" ${status === "paid" ? "selected" : ""}>Paid</option>
+          <option value="cancelled" ${
+            status === "cancelled" ? "selected" : ""
+          }>Cancelled</option>
+        </select>
+      </div>
+      <div class="field"><label>Notes</label><textarea name="notes">${escapeHtml(
+        existing?.notes || ""
+      )}</textarea></div>
     `,
     async (values) => {
       const service = state.cache.services.find((s) => s.id === values.service_id);
-      const { error } = await sb.from("payments").insert({
+      const nextStatus = ["pending", "paid", "cancelled"].includes(values.status)
+        ? values.status
+        : "pending";
+      const payload = {
         client_id: values.client_id,
         service_id: values.service_id || null,
         description:
-          values.description ||
-          service?.name ||
-          "Service payment",
+          values.description || service?.name || "Service payment",
         amount: Number(values.amount),
         due_date: values.due_date,
         notes: values.notes || null,
-        status: "pending",
-      });
-      if (error) throw error;
+        status: nextStatus,
+        paid_at:
+          nextStatus === "paid"
+            ? existing?.paid_at || new Date().toISOString()
+            : null,
+        updated_at: new Date().toISOString(),
+      };
+      if (existing) {
+        const { error } = await sb
+          .from("payments")
+          .update(payload)
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from("payments").insert({
+          ...payload,
+          status: "pending",
+          paid_at: null,
+        });
+        if (error) throw error;
+      }
       await refresh();
-      toast("Payment due recorded.");
+      toast(existing ? "Payment updated." : "Payment due recorded.");
     }
   );
 }
@@ -1783,92 +1842,188 @@ async function createServiceDue(engagementId) {
   toast("Payment due created.");
 }
 
-function capitalForm() {
+function capitalForm(existing = null) {
   openModal(
-    "Add capital contribution",
+    existing ? "Edit capital contribution" : "Add capital contribution",
     `
-      <div class="field"><label>Contributor</label><input name="contributor_name" required placeholder="Contributor name" value="Directors" /></div>
-      <div class="field"><label>Amount</label><input name="amount" type="number" step="0.01" required /></div>
-      <div class="field"><label>Date</label><input name="contribution_date" type="date" required value="${todayISO()}" /></div>
-      <div class="field"><label>Notes</label><textarea name="notes" placeholder="Optional notes"></textarea></div>
+      <div class="field"><label>Contributor</label><input name="contributor_name" required placeholder="Contributor name" value="${escapeHtml(
+        existing?.contributor_name || "Directors"
+      )}" /></div>
+      <div class="field"><label>Amount</label><input name="amount" type="number" step="0.01" required value="${
+        existing?.amount ?? ""
+      }" /></div>
+      <div class="field"><label>Date</label><input name="contribution_date" type="date" required value="${
+        existing?.contribution_date || todayISO()
+      }" /></div>
+      <div class="field"><label>Notes</label><textarea name="notes" placeholder="Optional notes">${escapeHtml(
+        existing?.notes || ""
+      )}</textarea></div>
     `,
     async (values) => {
-      const { error } = await sb.from("capital_contributions").insert({
+      const payload = {
         contributor_name: values.contributor_name,
         amount: Number(values.amount),
         contribution_date: values.contribution_date,
         notes: values.notes || null,
-        created_by: state.session.user.id,
-      });
-      if (error) throw error;
+        updated_at: new Date().toISOString(),
+      };
+      if (existing) {
+        const { error } = await sb
+          .from("capital_contributions")
+          .update(payload)
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from("capital_contributions").insert({
+          ...payload,
+          created_by: state.session.user.id,
+        });
+        if (error) throw error;
+      }
       await refresh();
-      toast("Capital contribution recorded.");
+      toast(existing ? "Capital contribution updated." : "Capital contribution recorded.");
     }
   );
 }
 
-function expenseForm() {
+function expenseForm(existing = null) {
+  const funded = expenseFundedBy(existing || { funded_by: "capital" });
   openModal(
-    "Add expense",
+    existing ? "Edit expense" : "Add expense",
     `
-      <div class="field"><label>Title</label><input name="title" required /></div>
-      <div class="field"><label>Category</label><input name="category" placeholder="e.g. Software, Travel" /></div>
-      <div class="field"><label>Amount</label><input name="amount" type="number" step="0.01" required /></div>
+      <div class="field"><label>Title</label><input name="title" required value="${escapeHtml(
+        existing?.title || ""
+      )}" /></div>
+      <div class="field"><label>Category</label><input name="category" placeholder="e.g. Software, Travel" value="${escapeHtml(
+        existing?.category || ""
+      )}" /></div>
+      <div class="field"><label>Amount</label><input name="amount" type="number" step="0.01" required value="${
+        existing?.amount ?? ""
+      }" /></div>
       <div class="field"><label>Paid from</label>
         <select name="funded_by">
-          <option value="capital" selected>Capital</option>
-          <option value="income">Income</option>
+          <option value="capital" ${funded === "capital" ? "selected" : ""}>Capital</option>
+          <option value="income" ${funded === "income" ? "selected" : ""}>Income</option>
         </select>
       </div>
-      <div class="field"><label>Date</label><input name="expense_date" type="date" required value="${todayISO()}" /></div>
-      <div class="field"><label>Notes</label><textarea name="notes"></textarea></div>
+      <div class="field"><label>Date</label><input name="expense_date" type="date" required value="${
+        existing?.expense_date || todayISO()
+      }" /></div>
+      <div class="field"><label>Notes</label><textarea name="notes">${escapeHtml(
+        existing?.notes || ""
+      )}</textarea></div>
     `,
     async (values) => {
       const fundedBy =
         values.funded_by === "income" ? "income" : "capital";
-      const { error } = await sb.from("expenses").insert({
+      const payload = {
         title: values.title,
         category: values.category || null,
         amount: Number(values.amount),
         expense_date: values.expense_date,
         funded_by: fundedBy,
         notes: values.notes || null,
-        created_by: state.session.user.id,
-      });
-      if (error) throw error;
+        updated_at: new Date().toISOString(),
+      };
+      if (existing) {
+        const { error } = await sb
+          .from("expenses")
+          .update(payload)
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from("expenses").insert({
+          ...payload,
+          created_by: state.session.user.id,
+        });
+        if (error) throw error;
+      }
       await refresh();
-      toast(
-        fundedBy === "capital"
-          ? "Expense drawn from capital."
-          : "Expense drawn from income."
-      );
+      toast(existing ? "Expense updated." : "Expense saved.");
     }
   );
 }
 
-function revenueForm() {
+function revenueForm(existing = null) {
   openModal(
-    "Add income",
+    existing ? "Edit income" : "Add income",
     `
-      <div class="field"><label>Title</label><input name="title" required placeholder="Income description" /></div>
-      <div class="field"><label>Amount</label><input name="amount" type="number" step="0.01" required /></div>
-      <div class="field"><label>Date</label><input name="entry_date" type="date" required value="${todayISO()}" /></div>
-      <div class="field"><label>Client (optional)</label><select name="client_id"><option value="">—</option>${clientOptions()}</select></div>
-      <div class="field"><label>Notes</label><textarea name="notes"></textarea></div>
+      <div class="field"><label>Title</label><input name="title" required placeholder="Income description" value="${escapeHtml(
+        existing?.title || ""
+      )}" /></div>
+      <div class="field"><label>Amount</label><input name="amount" type="number" step="0.01" required value="${
+        existing?.amount ?? ""
+      }" /></div>
+      <div class="field"><label>Date</label><input name="entry_date" type="date" required value="${
+        existing?.entry_date || todayISO()
+      }" /></div>
+      <div class="field"><label>Client (optional)</label><select name="client_id"><option value="">—</option>${clientOptions(
+        existing?.client_id || ""
+      )}</select></div>
+      <div class="field"><label>Notes</label><textarea name="notes">${escapeHtml(
+        existing?.notes || ""
+      )}</textarea></div>
     `,
     async (values) => {
-      const { error } = await sb.from("revenue_entries").insert({
+      const payload = {
         title: values.title,
         amount: Number(values.amount),
         entry_date: values.entry_date,
         client_id: values.client_id || null,
         notes: values.notes || null,
-        source: "manual",
-        created_by: state.session.user.id,
-      });
+        updated_at: new Date().toISOString(),
+      };
+      if (existing) {
+        const { error } = await sb
+          .from("revenue_entries")
+          .update(payload)
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from("revenue_entries").insert({
+          ...payload,
+          source: "manual",
+          created_by: state.session.user.id,
+        });
+        if (error) throw error;
+      }
+      await refresh();
+      toast(existing ? "Income updated." : "Income saved.");
+    }
+  );
+}
+
+function receiptForm(existing) {
+  if (!existing) return;
+  const issuedDate = String(existing.issued_at || todayISO()).slice(0, 10);
+  openModal(
+    "Edit receipt",
+    `
+      <div class="field"><label>Receipt number</label><input name="receipt_number" required value="${escapeHtml(
+        existing.receipt_number || ""
+      )}" /></div>
+      <div class="field"><label>Amount</label><input name="amount" type="number" step="0.01" required value="${
+        existing.amount ?? ""
+      }" /></div>
+      <div class="field"><label>Issued date</label><input name="issued_date" type="date" required value="${issuedDate}" /></div>
+      <div class="field"><label>Notes</label><textarea name="notes">${escapeHtml(
+        existing.notes || ""
+      )}</textarea></div>
+    `,
+    async (values) => {
+      const { error } = await sb
+        .from("receipts")
+        .update({
+          receipt_number: values.receipt_number,
+          amount: Number(values.amount),
+          issued_at: `${values.issued_date}T12:00:00.000Z`,
+          notes: values.notes || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
       if (error) throw error;
       await refresh();
-      toast("Income saved.");
+      toast("Receipt updated.");
     }
   );
 }
@@ -1966,6 +2121,16 @@ function bindUi() {
       );
     }
     if (action === "engagement-bill") return createServiceDue(id);
+    if (action === "engagement-del") {
+      if (!confirm("Delete this service engagement?")) return;
+      const { error } = await sb
+        .from("service_engagements")
+        .delete()
+        .eq("id", id);
+      if (error) return toast(error.message);
+      await refresh();
+      return toast("Engagement deleted.");
+    }
     if (action === "dpo-new") {
       if (!state.cache.clients.length) return toast("Add a client first.");
       return runAction(() => dpoForm());
@@ -1974,7 +2139,39 @@ function bindUi() {
       return runAction(() => dpoForm(state.cache.dpo.find((d) => d.id === id)));
     }
     if (action === "dpo-bill") return createDpoDue(id);
+    if (action === "dpo-del") {
+      if (!confirm("Delete this DPO engagement?")) return;
+      const { error } = await sb.from("dpo_engagements").delete().eq("id", id);
+      if (error) return toast(error.message);
+      await refresh();
+      return toast("DPO engagement deleted.");
+    }
     if (action === "quick-payment") return runAction(() => paymentForm());
+    if (action === "payment-edit") {
+      return runAction(() =>
+        paymentForm(state.cache.payments.find((p) => p.id === id))
+      );
+    }
+    if (action === "payment-del") {
+      if (!confirm("Delete this payment record?")) return;
+      const payment = state.cache.payments.find((p) => p.id === id);
+      if (payment?.receipt_id) {
+        const unlink = await sb
+          .from("payments")
+          .update({ receipt_id: null, updated_at: new Date().toISOString() })
+          .eq("id", id);
+        if (unlink.error) return toast(unlink.error.message);
+        const delReceipt = await sb
+          .from("receipts")
+          .delete()
+          .eq("id", payment.receipt_id);
+        if (delReceipt.error) return toast(delReceipt.error.message);
+      }
+      const { error } = await sb.from("payments").delete().eq("id", id);
+      if (error) return toast(error.message);
+      await refresh();
+      return toast("Payment deleted.");
+    }
     if (action === "pay-receipt") {
       try {
         await createReceiptForPayment(id);
@@ -1984,9 +2181,71 @@ function bindUi() {
       return;
     }
     if (action === "receipt-view") return runAction(() => renderReceipt(id));
+    if (action === "receipt-edit") {
+      return runAction(() =>
+        receiptForm(state.cache.receipts.find((r) => r.id === id))
+      );
+    }
+    if (action === "receipt-del") {
+      if (!confirm("Delete this receipt?")) return;
+      const receipt = state.cache.receipts.find((r) => r.id === id);
+      if (receipt?.payment_id) {
+        const unlink = await sb
+          .from("payments")
+          .update({
+            receipt_id: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", receipt.payment_id);
+        if (unlink.error) return toast(unlink.error.message);
+      }
+      const { error } = await sb.from("receipts").delete().eq("id", id);
+      if (error) return toast(error.message);
+      await refresh();
+      return toast("Receipt deleted.");
+    }
     if (action === "expense-new") return runAction(() => expenseForm());
+    if (action === "expense-edit") {
+      return runAction(() =>
+        expenseForm(state.cache.expenses.find((e) => e.id === id))
+      );
+    }
+    if (action === "expense-del") {
+      if (!confirm("Delete this expense?")) return;
+      const { error } = await sb.from("expenses").delete().eq("id", id);
+      if (error) return toast(error.message);
+      await refresh();
+      return toast("Expense deleted.");
+    }
     if (action === "revenue-new") return runAction(() => revenueForm());
+    if (action === "revenue-edit") {
+      return runAction(() =>
+        revenueForm(state.cache.revenue.find((r) => r.id === id))
+      );
+    }
+    if (action === "revenue-del") {
+      if (!confirm("Delete this income entry?")) return;
+      const { error } = await sb.from("revenue_entries").delete().eq("id", id);
+      if (error) return toast(error.message);
+      await refresh();
+      return toast("Income deleted.");
+    }
     if (action === "capital-new") return runAction(() => capitalForm());
+    if (action === "capital-edit") {
+      return runAction(() =>
+        capitalForm(state.cache.capital.find((c) => c.id === id))
+      );
+    }
+    if (action === "capital-del") {
+      if (!confirm("Delete this capital contribution?")) return;
+      const { error } = await sb
+        .from("capital_contributions")
+        .delete()
+        .eq("id", id);
+      if (error) return toast(error.message);
+      await refresh();
+      return toast("Capital contribution deleted.");
+    }
     if (action === "finance-export") {
       exportFinanceCsv();
       return;
