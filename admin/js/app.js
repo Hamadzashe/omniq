@@ -560,7 +560,6 @@ function serviceOptions(selected = "") {
 }
 
 function renderDashboard() {
-  const payments = state.cache.payments || [];
   const dues = duePayments();
   const overdue = dues.filter((p) => paymentStatus(p) === "overdue");
   const month = todayISO().slice(0, 7);
@@ -570,7 +569,23 @@ function renderDashboard() {
   const expenseMonth = (state.cache.expenses || [])
     .filter((r) => String(r.expense_date || "").startsWith(month))
     .reduce((sum, r) => sum + Number(r.amount || 0), 0);
-  const activeDpo = (state.cache.dpo || []).filter((d) => d.status === "active").length;
+  const capitalAll = state.cache.capital || [];
+  const capitalMonth = capitalAll
+    .filter((c) => String(c.contribution_date || "").startsWith(month))
+    .reduce((sum, c) => sum + Number(c.amount || 0), 0);
+  const capitalTotal = capitalAll.reduce(
+    (sum, c) => sum + Number(c.amount || 0),
+    0
+  );
+  const recentCapital = [...capitalAll]
+    .sort((a, b) =>
+      String(b.contribution_date || "").localeCompare(
+        String(a.contribution_date || "")
+      )
+    )
+    .slice(0, 5);
+  const activeDpo = (state.cache.dpo || []).filter((d) => d.status === "active")
+    .length;
 
   const weekBars = [0, 1, 2, 3, 4, 5, 6].map((i) => {
     const d = new Date();
@@ -592,25 +607,25 @@ function renderDashboard() {
       <button class="btn btn--primary" type="button" data-action="quick-payment">Record payment due</button>
     </div>
     <div class="grid grid--stats" style="margin-bottom:1rem">
-      <div class="card stat stat--accent">
-        <div class="stat__label">Revenue this month</div>
+      <div class="card stat stat--ok">
+        <div class="stat__label">Income this month</div>
         <div class="stat__value">${money(revenueMonth)}</div>
         <div class="stat__meta">${state.cache.clients.length} clients</div>
+      </div>
+      <div class="card stat stat--accent">
+        <div class="stat__label">Capital this month</div>
+        <div class="stat__value">${money(capitalMonth)}</div>
+        <div class="stat__meta">All time ${money(capitalTotal)}</div>
       </div>
       <div class="card stat stat--warn">
         <div class="stat__label">Expenses this month</div>
         <div class="stat__value">${money(expenseMonth)}</div>
-        <div class="stat__meta">Net ${money(revenueMonth - expenseMonth)}</div>
+        <div class="stat__meta">Operating ${money(revenueMonth - expenseMonth)}</div>
       </div>
       <div class="card stat stat--danger">
         <div class="stat__label">Overdue</div>
         <div class="stat__value">${overdue.length}</div>
-        <div class="stat__meta">${dues.length} open dues</div>
-      </div>
-      <div class="card stat stat--ok">
-        <div class="stat__label">Active DPO clients</div>
-        <div class="stat__value">${activeDpo}</div>
-        <div class="stat__meta">SI 155 engagements</div>
+        <div class="stat__meta">${dues.length} open dues · ${activeDpo} active DPO</div>
       </div>
     </div>
     <div class="grid grid--dash">
@@ -657,6 +672,28 @@ function renderDashboard() {
             .join("")}
         </div>
         <p class="stat__meta" style="margin-top:0.75rem">Paid receipts recorded this week.</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:1rem">
+      <h3>Capital contributions</h3>
+      <div class="list">
+        ${
+          recentCapital.length
+            ? recentCapital
+                .map(
+                  (c) => `<div class="list-item">
+                    <div>
+                      <strong>${escapeHtml(c.contributor_name)}</strong>
+                      <span>${fmtDate(c.contribution_date)}${
+                        c.notes ? ` · ${escapeHtml(c.notes)}` : ""
+                      }</span>
+                    </div>
+                    <strong>${money(c.amount, c.currency)}</strong>
+                  </div>`
+                )
+                .join("")
+            : `<div class="empty">No capital contributions recorded.</div>`
+        }
       </div>
     </div>
   `;
