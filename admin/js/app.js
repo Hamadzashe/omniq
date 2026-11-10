@@ -1056,10 +1056,13 @@ function getFilteredFinance() {
     (r) =>
       inFinanceRange(r.entry_date, range) && matchesSearch(`${r.title}`)
   );
-  const capital = (state.cache.capital || []).filter(
-    (c) =>
-      inFinanceRange(c.contribution_date, range) &&
-      matchesSearch(`${c.contributor_name} ${c.notes || ""}`)
+  // Capital is a running pot — always show all contributions (search only),
+  // not filtered by the income/expense period.
+  const capital = (state.cache.capital || []).filter((c) =>
+    matchesSearch(`${c.contributor_name} ${c.notes || ""}`)
+  );
+  const capitalInPeriod = capital.filter((c) =>
+    inFinanceRange(c.contribution_date, range)
   );
   const capitalExpenses = expenses.filter(
     (e) => expenseFundedBy(e) === "capital"
@@ -1068,11 +1071,12 @@ function getFilteredFinance() {
     (e) => expenseFundedBy(e) === "income"
   );
   const incomeTotal = sumAmounts(income);
-  const capitalTotal = sumAmounts(capital);
+  const capitalAllTime = sumAmounts(capital);
+  const capitalPeriodTotal = sumAmounts(capitalInPeriod);
+  const capitalTotal = capitalAllTime;
   const expenseTotal = sumAmounts(expenses);
   const capitalSpend = sumAmounts(capitalExpenses);
   const incomeSpend = sumAmounts(incomeExpenses);
-  const capitalAllTime = sumAmounts(state.cache.capital || []);
   const capitalSpendAllTime = sumAmounts(
     (state.cache.expenses || []).filter((e) => expenseFundedBy(e) === "capital")
   );
@@ -1081,15 +1085,17 @@ function getFilteredFinance() {
     expenses,
     income,
     capital,
+    capitalInPeriod,
     capitalExpenses,
     incomeExpenses,
     incomeTotal,
     expenseTotal,
     capitalTotal,
+    capitalPeriodTotal,
     capitalSpend,
     incomeSpend,
     incomeRemaining: incomeTotal - incomeSpend,
-    capitalRemainingPeriod: capitalTotal - capitalSpend,
+    capitalRemainingPeriod: capitalAllTime - capitalSpend,
     capitalRemaining: capitalAllTime - capitalSpendAllTime,
     capitalAllTime,
     capitalSpendAllTime,
@@ -1241,8 +1247,8 @@ function renderFinance() {
       </div>
       <div class="card stat stat--accent">
         <div class="stat__label">Capital introduced</div>
-        <div class="stat__value">${money(data.capitalTotal)}</div>
-        <div class="stat__meta">All time ${money(data.capitalAllTime)}</div>
+        <div class="stat__value">${money(data.capitalAllTime)}</div>
+        <div class="stat__meta">This period ${money(data.capitalPeriodTotal)}</div>
       </div>
       <div class="card stat stat--warn">
         <div class="stat__label">Spent from capital</div>
@@ -1306,7 +1312,7 @@ function renderFinance() {
                   </article>`
                 )
                 .join("")}</div>`
-            : emptyCard("No capital contributions in this period.")
+            : emptyCard("No capital contributions recorded.")
         }
       </section>
       <section class="finance-expenses">
