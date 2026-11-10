@@ -708,6 +708,16 @@ body.login-body {
   color: var(--violet);
 }
 
+.pill--accent {
+  background: var(--accent-soft);
+  color: var(--accent-2);
+}
+
+.pill--ok {
+  background: #e5f8ef;
+  color: var(--ok);
+}
+
 .table-wrap {
   overflow: auto;
 }

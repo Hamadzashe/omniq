@@ -225,7 +225,9 @@ export default {
       const adminResponse = await handleAdminHost(request, env, url);
       const headers = new Headers(adminResponse.headers);
       headers.set("X-Robots-Tag", "noindex, nofollow");
-      headers.set("Cache-Control", headers.get("Cache-Control") || "private, no-store");
+      // Always bypass caches so deploys and live data UI updates show immediately
+      headers.set("Cache-Control", "private, no-store, no-cache, must-revalidate");
+      headers.set("Pragma", "no-cache");
       return new Response(adminResponse.body, {
         status: adminResponse.status,
         statusText: adminResponse.statusText,

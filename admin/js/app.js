@@ -18,7 +18,24 @@ const state = {
   search: "",
   cache: {},
   financePeriod: sessionStorage.getItem("omniq_finance_period") || "this_month",
+  realtimeReady: false,
 };
+
+const REALTIME_TABLES = [
+  "clients",
+  "services",
+  "dpo_engagements",
+  "service_engagements",
+  "payments",
+  "receipts",
+  "expenses",
+  "revenue_entries",
+  "capital_contributions",
+];
+
+let realtimeChannel = null;
+let refreshTimer = null;
+let refreshInFlight = null;
 
 const TIER_LABELS = {
   tier_1: "Tier 1 (50–1,000 subjects)",
@@ -93,6 +110,19 @@ function paymentStatus(row) {
   if (row.status === "cancelled") return "cancelled";
   if (row.due_date && row.due_date < todayISO()) return "overdue";
   return "pending";
+}
+
+/** Expenses are drawn from capital by default (startup pot), or from income. */
+function expenseFundedBy(row) {
+  return row?.funded_by === "income" ? "income" : "capital";
+}
+
+function fundedByLabel(row) {
+  return expenseFundedBy(row) === "income" ? "From income" : "From capital";
+}
+
+function sumAmounts(rows) {
+  return (rows || []).reduce((s, r) => s + Number(r.amount || 0), 0);
 }
 
 /** Days from today to a YYYY-MM-DD due date (negative = overdue). */
@@ -566,17 +596,23 @@ function renderDashboard() {
   const revenueMonth = (state.cache.revenue || [])
     .filter((r) => String(r.entry_date || "").startsWith(month))
     .reduce((sum, r) => sum + Number(r.amount || 0), 0);
-  const expenseMonth = (state.cache.expenses || [])
-    .filter((r) => String(r.expense_date || "").startsWith(month))
-    .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+  const expensesAll = state.cache.expenses || [];
+  const expenseMonthRows = expensesAll.filter((r) =>
+    String(r.expense_date || "").startsWith(month)
+  );
+  const expenseMonth = sumAmounts(expenseMonthRows);
+  const capitalSpendMonth = sumAmounts(
+    expenseMonthRows.filter((e) => expenseFundedBy(e) === "capital")
+  );
   const capitalAll = state.cache.capital || [];
   const capitalMonth = capitalAll
     .filter((c) => String(c.contribution_date || "").startsWith(month))
     .reduce((sum, c) => sum + Number(c.amount || 0), 0);
-  const capitalTotal = capitalAll.reduce(
-    (sum, c) => sum + Number(c.amount || 0),
-    0
+  const capitalTotal = sumAmounts(capitalAll);
+  const capitalSpendAll = sumAmounts(
+    expensesAll.filter((e) => expenseFundedBy(e) === "capital")
   );
+  const capitalRemaining = capitalTotal - capitalSpendAll;
   const recentCapital = [...capitalAll]
     .sort((a, b) =>
       String(b.contribution_date || "").localeCompare(
@@ -613,14 +649,18 @@ function renderDashboard() {
         <div class="stat__meta">${state.cache.clients.length} clients</div>
       </div>
       <div class="card stat stat--accent">
-        <div class="stat__label">Capital this month</div>
-        <div class="stat__value">${money(capitalMonth)}</div>
-        <div class="stat__meta">All time ${money(capitalTotal)}</div>
+        <div class="stat__label">Capital remaining</div>
+        <div class="stat__value">${money(capitalRemaining)}</div>
+        <div class="stat__meta">Introduced ${money(capitalTotal)} · spent ${money(
+          capitalSpendAll
+        )}</div>
       </div>
       <div class="card stat stat--warn">
         <div class="stat__label">Expenses this month</div>
         <div class="stat__value">${money(expenseMonth)}</div>
-        <div class="stat__meta">Operating ${money(revenueMonth - expenseMonth)}</div>
+        <div class="stat__meta">From capital ${money(
+          capitalSpendMonth
+        )} · capital in ${money(capitalMonth)}</div>
       </div>
       <div class="card stat stat--danger">
         <div class="stat__label">Overdue</div>
@@ -1006,7 +1046,7 @@ function getFilteredFinance() {
   const expenses = (state.cache.expenses || []).filter(
     (e) =>
       inFinanceRange(e.expense_date, range) &&
-      matchesSearch(`${e.title} ${e.category}`)
+      matchesSearch(`${e.title} ${e.category} ${fundedByLabel(e)}`)
   );
   const income = (state.cache.revenue || []).filter(
     (r) =>
@@ -1017,14 +1057,38 @@ function getFilteredFinance() {
       inFinanceRange(c.contribution_date, range) &&
       matchesSearch(`${c.contributor_name} ${c.notes || ""}`)
   );
+  const capitalExpenses = expenses.filter(
+    (e) => expenseFundedBy(e) === "capital"
+  );
+  const incomeExpenses = expenses.filter(
+    (e) => expenseFundedBy(e) === "income"
+  );
+  const incomeTotal = sumAmounts(income);
+  const capitalTotal = sumAmounts(capital);
+  const expenseTotal = sumAmounts(expenses);
+  const capitalSpend = sumAmounts(capitalExpenses);
+  const incomeSpend = sumAmounts(incomeExpenses);
+  const capitalAllTime = sumAmounts(state.cache.capital || []);
+  const capitalSpendAllTime = sumAmounts(
+    (state.cache.expenses || []).filter((e) => expenseFundedBy(e) === "capital")
+  );
   return {
     range,
     expenses,
     income,
     capital,
-    incomeTotal: income.reduce((s, r) => s + Number(r.amount || 0), 0),
-    expenseTotal: expenses.reduce((s, r) => s + Number(r.amount || 0), 0),
-    capitalTotal: capital.reduce((s, r) => s + Number(r.amount || 0), 0),
+    capitalExpenses,
+    incomeExpenses,
+    incomeTotal,
+    expenseTotal,
+    capitalTotal,
+    capitalSpend,
+    incomeSpend,
+    incomeRemaining: incomeTotal - incomeSpend,
+    capitalRemainingPeriod: capitalTotal - capitalSpend,
+    capitalRemaining: capitalAllTime - capitalSpendAllTime,
+    capitalAllTime,
+    capitalSpendAllTime,
   };
 }
 
@@ -1067,7 +1131,7 @@ function exportFinanceCsv() {
       "Expense",
       e.expense_date,
       e.title,
-      e.category || "",
+      `${e.category || "Uncategorised"} · ${fundedByLabel(e)}`,
       Number(e.amount || 0).toFixed(2),
       e.currency || "USD",
       e.notes || "",
@@ -1077,17 +1141,35 @@ function exportFinanceCsv() {
   rows.push([]);
   rows.push(["Summary", "", "", "", "", "", ""]);
   rows.push(["Income total", "", "", "", data.incomeTotal.toFixed(2), "USD", ""]);
-  rows.push(["Capital total", "", "", "", data.capitalTotal.toFixed(2), "USD", ""]);
-  rows.push(["Expense total", "", "", "", data.expenseTotal.toFixed(2), "USD", ""]);
   rows.push([
-    "Operating result",
+    "Income after costs",
     "",
     "",
     "",
-    (data.incomeTotal - data.expenseTotal).toFixed(2),
+    data.incomeRemaining.toFixed(2),
     "USD",
     "",
   ]);
+  rows.push(["Capital introduced", "", "", "", data.capitalTotal.toFixed(2), "USD", ""]);
+  rows.push([
+    "Spent from capital",
+    "",
+    "",
+    "",
+    data.capitalSpend.toFixed(2),
+    "USD",
+    "",
+  ]);
+  rows.push([
+    "Capital remaining (all time)",
+    "",
+    "",
+    "",
+    data.capitalRemaining.toFixed(2),
+    "USD",
+    "",
+  ]);
+  rows.push(["Expense total", "", "", "", data.expenseTotal.toFixed(2), "USD", ""]);
   rows.push(["Period", data.range.label, data.range.start || "", data.range.end || "", "", "", ""]);
 
   const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\n");
@@ -1151,18 +1233,26 @@ function renderFinance() {
       <div class="card stat stat--ok">
         <div class="stat__label">Income</div>
         <div class="stat__value">${money(data.incomeTotal)}</div>
+        <div class="stat__meta">After income costs ${money(data.incomeRemaining)}</div>
       </div>
       <div class="card stat stat--accent">
         <div class="stat__label">Capital introduced</div>
         <div class="stat__value">${money(data.capitalTotal)}</div>
+        <div class="stat__meta">All time ${money(data.capitalAllTime)}</div>
       </div>
       <div class="card stat stat--warn">
-        <div class="stat__label">Expenses</div>
-        <div class="stat__value">${money(data.expenseTotal)}</div>
+        <div class="stat__label">Spent from capital</div>
+        <div class="stat__value">${money(data.capitalSpend)}</div>
+        <div class="stat__meta">From income ${money(data.incomeSpend)} · all expenses ${money(
+          data.expenseTotal
+        )}</div>
       </div>
       <div class="card stat">
-        <div class="stat__label">Operating result</div>
-        <div class="stat__value">${money(data.incomeTotal - data.expenseTotal)}</div>
+        <div class="stat__label">Capital remaining</div>
+        <div class="stat__value">${money(data.capitalRemaining)}</div>
+        <div class="stat__meta">Live pot · period left ${money(
+          data.capitalRemainingPeriod
+        )}</div>
       </div>
     </div>
 
@@ -1216,7 +1306,12 @@ function renderFinance() {
                   (e) => `<article class="stack-card">
                     <div class="stack-card__main">
                       <strong>${escapeHtml(e.title)}</strong>
-                      <span>${fmtDate(e.expense_date)} · ${escapeHtml(e.category || "Uncategorised")}</span>
+                      <span>${fmtDate(e.expense_date)} · ${escapeHtml(
+                        e.category || "Uncategorised"
+                      )}</span>
+                      <div class="stack-card__meta"><span class="pill pill--${
+                        expenseFundedBy(e) === "capital" ? "accent" : "ok"
+                      }">${escapeHtml(fundedByLabel(e))}</span></div>
                       <span class="stack-card__amount">${money(e.amount, e.currency)}</span>
                     </div>
                   </article>`
@@ -1286,8 +1381,46 @@ function render() {
 }
 
 async function refresh() {
-  await loadAll();
-  render();
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    await loadAll();
+    render();
+  })();
+  try {
+    await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
+  }
+}
+
+function scheduleRefresh() {
+  window.clearTimeout(refreshTimer);
+  refreshTimer = window.setTimeout(() => {
+    refresh().catch((err) => console.error(err));
+  }, 120);
+}
+
+function stopRealtime() {
+  if (realtimeChannel) {
+    sb.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
+  state.realtimeReady = false;
+}
+
+function startRealtime() {
+  if (realtimeChannel || !state.session) return;
+  let channel = sb.channel("omniq-admin-live");
+  REALTIME_TABLES.forEach((table) => {
+    channel = channel.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table },
+      () => scheduleRefresh()
+    );
+  });
+  realtimeChannel = channel.subscribe((status) => {
+    state.realtimeReady = status === "SUBSCRIBED";
+  });
 }
 
 function clientForm(existing = null) {
@@ -1681,21 +1814,34 @@ function expenseForm() {
       <div class="field"><label>Title</label><input name="title" required /></div>
       <div class="field"><label>Category</label><input name="category" placeholder="e.g. Software, Travel" /></div>
       <div class="field"><label>Amount</label><input name="amount" type="number" step="0.01" required /></div>
+      <div class="field"><label>Paid from</label>
+        <select name="funded_by">
+          <option value="capital" selected>Capital</option>
+          <option value="income">Income</option>
+        </select>
+      </div>
       <div class="field"><label>Date</label><input name="expense_date" type="date" required value="${todayISO()}" /></div>
       <div class="field"><label>Notes</label><textarea name="notes"></textarea></div>
     `,
     async (values) => {
+      const fundedBy =
+        values.funded_by === "income" ? "income" : "capital";
       const { error } = await sb.from("expenses").insert({
         title: values.title,
         category: values.category || null,
         amount: Number(values.amount),
         expense_date: values.expense_date,
+        funded_by: fundedBy,
         notes: values.notes || null,
         created_by: state.session.user.id,
       });
       if (error) throw error;
       await refresh();
-      toast("Expense saved.");
+      toast(
+        fundedBy === "capital"
+          ? "Expense drawn from capital."
+          : "Expense drawn from income."
+      );
     }
   );
 }
@@ -1748,6 +1894,7 @@ function bindUi() {
   });
 
   $("#logout-btn").addEventListener("click", async () => {
+    stopRealtime();
     await sb.auth.signOut();
     showLogin();
   });
@@ -1849,9 +1996,13 @@ function bindUi() {
 
 async function boot() {
   const ok = await requireSession();
-  if (!ok) return;
+  if (!ok) {
+    stopRealtime();
+    return;
+  }
   try {
     await refresh();
+    startRealtime();
   } catch (err) {
     console.error(err);
     toast(err.message || "Failed to load admin data. Check Supabase auth/RLS.");
@@ -1864,6 +2015,11 @@ async function boot() {
 bindUi();
 sb.auth.onAuthStateChange((_event, session) => {
   state.session = session;
-  if (!session) showLogin();
+  if (!session) {
+    stopRealtime();
+    showLogin();
+    return;
+  }
+  startRealtime();
 });
 boot();
