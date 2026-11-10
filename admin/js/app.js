@@ -1626,8 +1626,14 @@ function renderFinance() {
       </div>
     </div>
 
-    <div class="finance-tabs" role="tablist" aria-label="Finance categories">
-      ${categoryTabs}
+    <div class="finance-tabs-wrap" id="finance-tabs-wrap">
+      <div class="finance-tabs-hint" aria-hidden="true">
+        <span>Swipe tabs</span>
+        <i data-lucide="chevrons-right"></i>
+      </div>
+      <div class="finance-tabs" id="finance-tabs" role="tablist" aria-label="Finance categories">
+        ${categoryTabs}
+      </div>
     </div>
 
     <div class="finance-workbook">
@@ -1636,6 +1642,28 @@ function renderFinance() {
       ${showExpenses ? renderExpensesSheet(data) : ""}
     </div>
   `;
+}
+
+function setupFinanceTabsScroll() {
+  const wrap = $("#finance-tabs-wrap");
+  const scroller = $("#finance-tabs");
+  if (!wrap || !scroller) return;
+
+  const update = () => {
+    const max = scroller.scrollWidth - scroller.clientWidth;
+    const canScroll = max > 4;
+    wrap.classList.toggle("is-scrollable", canScroll);
+    wrap.classList.toggle("is-at-start", scroller.scrollLeft <= 2);
+    wrap.classList.toggle(
+      "is-at-end",
+      !canScroll || scroller.scrollLeft >= max - 2
+    );
+  };
+
+  scroller.addEventListener("scroll", update, { passive: true });
+  window.addEventListener("resize", update, { passive: true });
+  update();
+  window.setTimeout(update, 50);
 }
 
 function renderReceipts() {
@@ -1693,6 +1721,7 @@ function render() {
   $$("#main-nav [data-route]").forEach((btn) => {
     btn.classList.toggle("is-active", btn.dataset.route === state.route);
   });
+  if (state.route === "finance") setupFinanceTabsScroll();
   refreshIcons();
 }
 

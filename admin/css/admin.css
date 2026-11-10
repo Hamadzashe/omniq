@@ -953,14 +953,23 @@ th {
   min-height: 46px;
 }
 
+.finance-tabs-wrap {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.finance-tabs-hint {
+  display: none;
+}
+
 .finance-tabs {
   display: flex;
   gap: 0.5rem;
   overflow-x: auto;
-  padding-bottom: 0.35rem;
-  margin-bottom: 1rem;
+  padding-bottom: 0.45rem;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
+  scroll-snap-type: x proximity;
 }
 
 .finance-tab {
@@ -977,6 +986,8 @@ th {
   white-space: nowrap;
   cursor: pointer;
   min-height: 44px;
+  flex: 0 0 auto;
+  scroll-snap-align: start;
 }
 
 .finance-tab em {
@@ -1277,6 +1288,90 @@ th {
 }
 
 @media (max-width: 860px) {
+  .finance-tabs-hint {
+    display: none;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    margin: 0 0 0.45rem;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  .finance-tabs-wrap.is-scrollable .finance-tabs-hint {
+    display: inline-flex;
+  }
+
+  .finance-tabs-hint svg {
+    width: 16px;
+    height: 16px;
+    animation: finance-tabs-nudge 1.4s ease-in-out infinite;
+  }
+
+  .finance-tabs-wrap.is-at-end .finance-tabs-hint {
+    opacity: 0.35;
+  }
+
+  .finance-tabs-wrap.is-at-end .finance-tabs-hint svg {
+    animation: none;
+  }
+
+  .finance-tabs {
+    padding-right: 2.75rem;
+    scrollbar-width: auto;
+  }
+
+  .finance-tabs::-webkit-scrollbar {
+    height: 5px;
+  }
+
+  .finance-tabs::-webkit-scrollbar-thumb {
+    background: #c5cedb;
+    border-radius: 999px;
+  }
+
+  .finance-tabs-wrap.is-scrollable::before,
+  .finance-tabs-wrap.is-scrollable::after {
+    content: "";
+    position: absolute;
+    top: 1.55rem;
+    bottom: 0.45rem;
+    width: 2.1rem;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .finance-tabs-wrap.is-scrollable::before {
+    left: 0;
+    background: linear-gradient(90deg, var(--canvas), transparent);
+    opacity: 0;
+  }
+
+  .finance-tabs-wrap.is-scrollable::after {
+    right: 0;
+    background: linear-gradient(270deg, var(--canvas), transparent);
+    opacity: 1;
+  }
+
+  .finance-tabs-wrap.is-scrollable:not(.is-at-start)::before {
+    opacity: 1;
+  }
+
+  .finance-tabs-wrap.is-scrollable.is-at-end::after {
+    opacity: 0;
+  }
+
+  @keyframes finance-tabs-nudge {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    50% {
+      transform: translateX(4px);
+    }
+  }
+
   .app-shell {
     grid-template-columns: 1fr;
   }
