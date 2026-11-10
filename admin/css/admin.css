@@ -801,6 +801,47 @@ th {
   margin-top: 1rem;
 }
 
+.confirm-backdrop {
+  z-index: 90;
+}
+
+.confirm-dialog {
+  width: min(440px, 100%);
+  text-align: left;
+}
+
+.confirm-dialog__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: #fdeeee;
+  color: var(--danger);
+  margin-bottom: 0.85rem;
+}
+
+.confirm-dialog__icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.confirm-dialog__message {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.confirm-dialog__actions {
+  margin-top: 1.25rem;
+}
+
+.confirm-dialog__actions .btn {
+  min-height: 44px;
+  min-width: 7.5rem;
+}
+
 .hidden {
   display: none !important;
 }

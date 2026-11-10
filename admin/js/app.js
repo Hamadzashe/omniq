@@ -237,7 +237,98 @@ function showApp() {
 
 function closeModal() {
   $("#modal-root").innerHTML = "";
-  document.body.classList.remove("modal-open");
+  if (!$("#confirm-root")?.innerHTML) {
+    document.body.classList.remove("modal-open");
+  }
+}
+
+function closeConfirm() {
+  const root = $("#confirm-root");
+  if (root) root.innerHTML = "";
+  if (!$("#modal-root")?.innerHTML) {
+    document.body.classList.remove("modal-open");
+  }
+}
+
+/**
+ * Professional in-app delete confirmation (replaces window.confirm).
+ * @returns {Promise<boolean>}
+ */
+function confirmDialog({
+  title = "Delete record",
+  message = "Are you sure you want to delete this item? This cannot be undone.",
+  confirmLabel = "Delete",
+  cancelLabel = "Keep it",
+} = {}) {
+  return new Promise((resolve) => {
+    const root = $("#confirm-root");
+    if (!root) {
+      resolve(window.confirm(message));
+      return;
+    }
+    document.body.classList.add("modal-open");
+    root.innerHTML = `
+      <div class="modal-backdrop confirm-backdrop" id="confirm-backdrop" role="presentation">
+        <div class="modal confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+          <div class="confirm-dialog__icon" aria-hidden="true">
+            <i data-lucide="triangle-alert"></i>
+          </div>
+          <h2 id="confirm-title">${escapeHtml(title)}</h2>
+          <p id="confirm-message" class="confirm-dialog__message">${escapeHtml(
+            message
+          )}</p>
+          <div class="modal__actions confirm-dialog__actions">
+            <button type="button" class="btn btn--ghost" id="confirm-cancel">${escapeHtml(
+              cancelLabel
+            )}</button>
+            <button type="button" class="btn btn--danger" id="confirm-ok">${escapeHtml(
+              confirmLabel
+            )}</button>
+          </div>
+        </div>
+      </div>
+    `;
+    refreshIcons();
+
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      closeConfirm();
+      resolve(value);
+    };
+
+    $("#confirm-cancel")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      finish(false);
+    });
+    $("#confirm-ok")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      finish(true);
+    });
+
+    let allowBackdropClose = false;
+    window.setTimeout(() => {
+      allowBackdropClose = true;
+    }, 350);
+
+    $("#confirm-backdrop")?.addEventListener("click", (e) => {
+      if (!allowBackdropClose) return;
+      if (e.target?.id === "confirm-backdrop") finish(false);
+    });
+
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        document.removeEventListener("keydown", onKey);
+        finish(false);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    window.setTimeout(() => $("#confirm-ok")?.focus(), 20);
+  });
 }
 
 function openModal(title, bodyHtml, onSubmit) {
@@ -2394,7 +2485,13 @@ function bindUi() {
       );
     }
     if (action === "client-del") {
-      if (!confirm("Delete this client?")) return;
+      const ok = await confirmDialog({
+        title: "Delete client",
+        message:
+          "This will permanently remove the client record. Related records may be affected.",
+        confirmLabel: "Delete client",
+      });
+      if (!ok) return;
       const { error } = await sb.from("clients").delete().eq("id", id);
       if (error) return toast(error.message);
       await refresh();
@@ -2417,7 +2514,13 @@ function bindUi() {
     }
     if (action === "engagement-bill") return createServiceDue(id);
     if (action === "engagement-del") {
-      if (!confirm("Delete this service engagement?")) return;
+      const ok = await confirmDialog({
+        title: "Delete service engagement",
+        message:
+          "Remove this client service engagement? This cannot be undone.",
+        confirmLabel: "Delete engagement",
+      });
+      if (!ok) return;
       const { error } = await sb
         .from("service_engagements")
         .delete()
@@ -2435,7 +2538,12 @@ function bindUi() {
     }
     if (action === "dpo-bill") return createDpoDue(id);
     if (action === "dpo-del") {
-      if (!confirm("Delete this DPO engagement?")) return;
+      const ok = await confirmDialog({
+        title: "Delete DPO engagement",
+        message: "Remove this DPO engagement permanently?",
+        confirmLabel: "Delete engagement",
+      });
+      if (!ok) return;
       const { error } = await sb.from("dpo_engagements").delete().eq("id", id);
       if (error) return toast(error.message);
       await refresh();
@@ -2448,7 +2556,13 @@ function bindUi() {
       );
     }
     if (action === "payment-del") {
-      if (!confirm("Delete this payment record?")) return;
+      const ok = await confirmDialog({
+        title: "Delete payment",
+        message:
+          "This payment will be removed. Any linked receipt will also be deleted.",
+        confirmLabel: "Delete payment",
+      });
+      if (!ok) return;
       const payment = state.cache.payments.find((p) => p.id === id);
       if (payment?.receipt_id) {
         const unlink = await sb
@@ -2482,7 +2596,12 @@ function bindUi() {
       );
     }
     if (action === "receipt-del") {
-      if (!confirm("Delete this receipt?")) return;
+      const ok = await confirmDialog({
+        title: "Delete receipt",
+        message: "Delete this receipt? The linked payment will stay on file.",
+        confirmLabel: "Delete receipt",
+      });
+      if (!ok) return;
       const receipt = state.cache.receipts.find((r) => r.id === id);
       if (receipt?.payment_id) {
         const unlink = await sb
@@ -2506,7 +2625,13 @@ function bindUi() {
       );
     }
     if (action === "expense-del") {
-      if (!confirm("Delete this expense?")) return;
+      const ok = await confirmDialog({
+        title: "Delete expense",
+        message:
+          "Remove this expense from your books? Capital and totals will update.",
+        confirmLabel: "Delete expense",
+      });
+      if (!ok) return;
       const { error } = await sb.from("expenses").delete().eq("id", id);
       if (error) return toast(error.message);
       await refresh();
@@ -2519,7 +2644,12 @@ function bindUi() {
       );
     }
     if (action === "revenue-del") {
-      if (!confirm("Delete this income entry?")) return;
+      const ok = await confirmDialog({
+        title: "Delete income",
+        message: "Remove this income entry permanently?",
+        confirmLabel: "Delete income",
+      });
+      if (!ok) return;
       const { error } = await sb.from("revenue_entries").delete().eq("id", id);
       if (error) return toast(error.message);
       await refresh();
@@ -2532,7 +2662,13 @@ function bindUi() {
       );
     }
     if (action === "capital-del") {
-      if (!confirm("Delete this capital contribution?")) return;
+      const ok = await confirmDialog({
+        title: "Delete capital contribution",
+        message:
+          "Remove this capital contribution? Remaining capital will be recalculated.",
+        confirmLabel: "Delete capital",
+      });
+      if (!ok) return;
       const { error } = await sb
         .from("capital_contributions")
         .delete()
