@@ -1067,17 +1067,15 @@ th {
 }
 
 .finance-sheet__table {
-  --finance-cols: 5;
+  --finance-cols: 4;
 }
 
 .finance-row {
   display: grid;
   grid-template-columns:
-    minmax(6.5rem, 0.8fr)
-    minmax(10rem, 2.2fr)
-    minmax(7rem, 1fr)
-    minmax(6.5rem, 0.9fr)
-    minmax(8.5rem, 0.9fr);
+    minmax(11rem, 2.4fr)
+    repeat(calc(var(--finance-cols) - 2), minmax(6.5rem, 1fr))
+    minmax(8.5rem, auto);
   gap: 0.65rem 0.85rem;
   align-items: center;
   padding: 0.85rem 1.1rem;

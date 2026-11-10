@@ -1362,162 +1362,164 @@ function financeSheetBlock({
   `;
 }
 
-function groupExpensesByCategory(expenses) {
+/** Group rows by their business date field (not created_at), newest first. */
+function groupFinanceByDate(rows, dateField) {
   const groups = new Map();
-  expenses.forEach((expense) => {
-    const key = String(expense.category || "").trim() || "Uncategorised";
+  (rows || []).forEach((row) => {
+    const key = String(row[dateField] || "").slice(0, 10) || "undated";
     if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(expense);
+    groups.get(key).push(row);
   });
-  return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  return [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+}
+
+function financeDateGroups(rows, dateField, renderRow) {
+  const grouped = groupFinanceByDate(rows, dateField);
+  if (!grouped.length) return "";
+  return grouped
+    .map(([dateKey, items]) => {
+      const subtotal = sumAmounts(items);
+      const label =
+        dateKey === "undated" ? "No date" : fmtDate(dateKey);
+      return `
+        <div class="finance-group">
+          <div class="finance-group__head">
+            <strong>${escapeHtml(label)}</strong>
+            <span>${items.length} item${items.length === 1 ? "" : "s"} · ${money(
+              subtotal
+            )}</span>
+          </div>
+          ${items.map(renderRow).join("")}
+        </div>
+      `;
+    })
+    .join("");
 }
 
 function renderIncomeSheet(data) {
-  const rows = data.income
-    .map((r) =>
-      financeSheetRow(
-        [
-          { label: "Date", html: escapeHtml(fmtDate(r.entry_date)) },
-          {
-            label: "Description",
-            wide: true,
-            html: `<strong>${escapeHtml(r.title)}</strong>${
-              r.notes ? `<span class="finance-note-line">${escapeHtml(r.notes)}</span>` : ""
-            }`,
-          },
-          {
-            label: "Source",
-            html: escapeHtml(
-              r.source === "client_payment" ? "Client payment" : "Manual"
-            ),
-          },
-          {
-            label: "Amount",
-            strong: true,
-            html: money(r.amount, r.currency),
-          },
-        ],
-        financeActionButtons("revenue-edit", "revenue-del", r.id)
-      )
+  const bodyHtml = financeDateGroups(data.income, "entry_date", (r) =>
+    financeSheetRow(
+      [
+        {
+          label: "Description",
+          wide: true,
+          html: `<strong>${escapeHtml(r.title)}</strong>${
+            r.notes
+              ? `<span class="finance-note-line">${escapeHtml(r.notes)}</span>`
+              : ""
+          }`,
+        },
+        {
+          label: "Source",
+          html: escapeHtml(
+            r.source === "client_payment" ? "Client payment" : "Manual"
+          ),
+        },
+        {
+          label: "Amount",
+          strong: true,
+          html: money(r.amount, r.currency),
+        },
+      ],
+      financeActionButtons("revenue-edit", "revenue-del", r.id)
     )
-    .join("");
+  );
 
   return financeSheetBlock({
     tone: "income",
     title: "Income",
-    subtitle: "Client payments and other revenue",
+    subtitle: "Grouped by income date",
     totalValue: money(data.incomeTotal),
     columns: [
-      { label: "Date" },
       { label: "Description", wide: true },
       { label: "Source" },
       { label: "Amount", amount: true },
     ],
-    bodyHtml: rows,
+    bodyHtml,
     emptyMessage: "No income in this period.",
   });
 }
 
 function renderCapitalSheet(data) {
-  const rows = data.capital
-    .map((c) =>
-      financeSheetRow(
-        [
-          { label: "Date", html: escapeHtml(fmtDate(c.contribution_date)) },
-          {
-            label: "Contributor",
-            wide: true,
-            html: `<strong>${escapeHtml(c.contributor_name)}</strong>${
-              c.notes ? `<span class="finance-note-line">${escapeHtml(c.notes)}</span>` : ""
-            }`,
-          },
-          { label: "Type", html: "Capital introduced" },
-          {
-            label: "Amount",
-            strong: true,
-            html: money(c.amount, c.currency),
-          },
-        ],
-        financeActionButtons("capital-edit", "capital-del", c.id)
-      )
+  const bodyHtml = financeDateGroups(data.capital, "contribution_date", (c) =>
+    financeSheetRow(
+      [
+        {
+          label: "Contributor",
+          wide: true,
+          html: `<strong>${escapeHtml(c.contributor_name)}</strong>${
+            c.notes
+              ? `<span class="finance-note-line">${escapeHtml(c.notes)}</span>`
+              : ""
+          }`,
+        },
+        { label: "Type", html: "Capital introduced" },
+        {
+          label: "Amount",
+          strong: true,
+          html: money(c.amount, c.currency),
+        },
+      ],
+      financeActionButtons("capital-edit", "capital-del", c.id)
     )
-    .join("");
+  );
 
   return financeSheetBlock({
     tone: "capital",
     title: "Capital",
-    subtitle: "Director and shareholder contributions (all time)",
+    subtitle: "Grouped by contribution date · all time",
     totalValue: money(data.capitalAllTime),
     columns: [
-      { label: "Date" },
       { label: "Contributor", wide: true },
       { label: "Type" },
       { label: "Amount", amount: true },
     ],
-    bodyHtml: rows,
+    bodyHtml,
     emptyMessage: "No capital contributions recorded.",
   });
 }
 
 function renderExpensesSheet(data) {
-  const grouped = groupExpensesByCategory(data.expenses);
-  const bodyHtml = grouped.length
-    ? grouped
-        .map(([category, rows]) => {
-          const subtotal = sumAmounts(rows);
-          const rowHtml = rows
-            .map((e) =>
-              financeSheetRow(
-                [
-                  { label: "Date", html: escapeHtml(fmtDate(e.expense_date)) },
-                  {
-                    label: "Description",
-                    wide: true,
-                    html: `<strong>${escapeHtml(e.title)}</strong>${
-                      e.notes
-                        ? `<span class="finance-note-line">${escapeHtml(e.notes)}</span>`
-                        : ""
-                    }`,
-                  },
-                  {
-                    label: "Paid from",
-                    html: `<span class="pill pill--${
-                      expenseFundedBy(e) === "capital" ? "accent" : "ok"
-                    }">${escapeHtml(fundedByLabel(e))}</span>`,
-                  },
-                  {
-                    label: "Amount",
-                    strong: true,
-                    html: money(e.amount, e.currency),
-                  },
-                ],
-                financeActionButtons("expense-edit", "expense-del", e.id)
-              )
-            )
-            .join("");
-          return `
-            <div class="finance-group">
-              <div class="finance-group__head">
-                <strong>${escapeHtml(category)}</strong>
-                <span>${rows.length} item${rows.length === 1 ? "" : "s"} · ${money(
-                  subtotal
-                )}</span>
-              </div>
-              ${rowHtml}
-            </div>
-          `;
-        })
-        .join("")
-    : "";
+  const bodyHtml = financeDateGroups(data.expenses, "expense_date", (e) =>
+    financeSheetRow(
+      [
+        {
+          label: "Description",
+          wide: true,
+          html: `<strong>${escapeHtml(e.title)}</strong>${
+            e.notes
+              ? `<span class="finance-note-line">${escapeHtml(e.notes)}</span>`
+              : ""
+          }`,
+        },
+        {
+          label: "Category",
+          html: escapeHtml(e.category || "Uncategorised"),
+        },
+        {
+          label: "Paid from",
+          html: `<span class="pill pill--${
+            expenseFundedBy(e) === "capital" ? "accent" : "ok"
+          }">${escapeHtml(fundedByLabel(e))}</span>`,
+        },
+        {
+          label: "Amount",
+          strong: true,
+          html: money(e.amount, e.currency),
+        },
+      ],
+      financeActionButtons("expense-edit", "expense-del", e.id)
+    )
+  );
 
   return financeSheetBlock({
     tone: "expenses",
     title: "Expenses",
-    subtitle: "Grouped by category · drawn from capital or income",
+    subtitle: "Grouped by expense date · drawn from capital or income",
     totalValue: money(data.expenseTotal),
     columns: [
-      { label: "Date" },
       { label: "Description", wide: true },
+      { label: "Category" },
       { label: "Paid from" },
       { label: "Amount", amount: true },
     ],
